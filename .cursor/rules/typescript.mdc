@@ -1,0 +1,9 @@
+---
+description: Please use only type-safe TS features. Avoid using unsafe types, "as" keyword, "any" type. When possible use readonly, non-mutable and constant types. Use "as const" and "satisfies" when neccessary.""
+globs: **/*.{ts,tsx}
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
