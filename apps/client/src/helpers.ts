@@ -1,7 +1,6 @@
-import { CityEntity } from './deck';
-
-import { RoadEntity } from './deck';
-import { Edge } from './Field';
+import { CityEntity } from 'shared';
+import { RoadEntity } from 'shared';
+import { Edge } from 'shared';
 
 export const getEdgesFromEntities = (
   entities: (RoadEntity | CityEntity)[]

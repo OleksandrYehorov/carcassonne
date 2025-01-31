@@ -1,121 +1,100 @@
-import { FC, useCallback, useRef, useState } from 'react';
-import { CARCASSONNE_DECK, shuffleDeck, TileEntity } from './deck';
+import {
+  Edge,
+  Orientation,
+  PlacedTile,
+  Pos,
+  TileEntity,
+} from '@carcassonne/shared';
+import { skipToken } from '@tanstack/react-query';
 import { produce } from 'immer';
+import { FC, useCallback, useEffect, useRef, useState } from 'react';
 import { Tile } from './Tile';
 import { getEdgesFromEntities } from './helpers';
-
-export interface Position {
-  x: number;
-  y: number;
-}
-
-export type EdgeType = 'city' | 'road' | 'grass';
-export type TileOrientation = 'top' | 'right' | 'bottom' | 'left';
-export type CityEdge = 'top' | 'right' | 'bottom' | 'left';
-export type RoadEdge = 'top' | 'right' | 'bottom' | 'left' | 'center';
-
-export interface Edge {
-  type: EdgeType;
-}
-
-export interface RoadEntity {
-  type: 'road';
-  from: RoadEdge;
-  to: RoadEdge;
-}
-
-export interface CityEntity {
-  type: 'city';
-  edges: CityEdge[];
-  isFortified: boolean;
-}
-
-interface GridTileEntity extends TileEntity {
-  position: Position;
-}
-
-// Constants
-export const CELL_SIZE = 80;
-export const GRID_COLOR = '#ddd';
-export const ZOOM_SPEED = 0.1;
-export const MIN_ZOOM = 0.5;
-export const MAX_ZOOM = 2;
-export const GRID_CELLS = 50;
+import { trpc } from './utils/trpc';
+import {
+  CELL_SIZE,
+  GRID_CELLS,
+  GRID_COLOR,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  ZOOM_SPEED,
+} from './constants';
 
 export const Field: FC = () => {
-  const [offset, setOffset] = useState<Position>({ x: 0, y: 0 });
+  const utils = trpc.useUtils();
+  const createGameMutation = trpc.game.createGame.useMutation();
+  const gameId = createGameMutation.data?.gameId;
+
+  // Get game state query
+  const gameStateQuery = trpc.game.getGameState.useQuery(gameId ?? skipToken);
+
+  // Mutations for game actions
+  const rotateTileMutation = trpc.game.rotateTile.useMutation();
+  const placeTileMutation = trpc.game.placeTile.useMutation();
+  const shuffleTileMutation = trpc.game.shuffleCurrentTile.useMutation();
+
+  // Create game on component mount
+  useEffect(() => {
+    createGameMutation.mutate();
+  }, []);
+
+  const [offset, setOffset] = useState<Pos>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<Position>({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = useState<Pos>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [showLabels, setShowLabels] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize deck without the start tile
-  const [deck, setDeck] = useState<TileEntity[]>(() => {
-    const shuffledDeck = shuffleDeck(CARCASSONNE_DECK.slice(1)); // Skip the start tile
-    return shuffledDeck;
-  });
+  // Add a useEffect to center the board on initial load
+  useEffect(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setOffset({
+        x: rect.width / 2,
+        y: rect.height / 2,
+      });
+    }
+  }, []);
 
-  // Initialize placed tiles with the start tile at the center
-  const [placedTiles, setPlacedTiles] = useState<GridTileEntity[]>(() => {
-    const centerX = Math.floor(window.innerWidth / (2 * CELL_SIZE));
-    const centerY = Math.floor(window.innerHeight / (2 * CELL_SIZE));
-
-    return [
-      {
-        ...CARCASSONNE_DECK[0],
-        position: { x: centerX, y: centerY },
+  // Handle tile rotation
+  const handleRotateTile = useCallback(() => {
+    if (!gameId) return;
+    rotateTileMutation.mutate(gameId, {
+      onSuccess: () => {
+        utils.game.getGameState.invalidate();
       },
-    ];
-  });
+    });
+  }, [gameId]);
 
-  // Add rotation count state
-  const [currentRotations, setCurrentRotations] = useState(0);
-
-  const getNextOrientation = (
-    orientation: TileOrientation
-  ): TileOrientation => {
-    return orientation === 'top'
-      ? 'right'
-      : orientation === 'right'
-      ? 'bottom'
-      : orientation === 'bottom'
-      ? 'left'
-      : 'top';
-  };
-
-  // Update rotateTile to track rotations
-  const rotateTile = useCallback(() => {
-    setDeck(
-      produce((draft) => {
-        if (draft[0]) {
-          draft[0].orientation = getNextOrientation(draft[0].orientation);
+  // Handle tile placement
+  const handlePlaceTile = useCallback(
+    (position: Pos) => {
+      if (!gameId) return;
+      placeTileMutation.mutate(
+        { gameId, position },
+        {
+          onSuccess: () => {
+            utils.game.getGameState.invalidate();
+          },
         }
-      })
-    );
-    setCurrentRotations((prev) => prev + 1);
-  }, []);
+      );
+    },
+    [gameId]
+  );
 
-  // Add function to shuffle current tile back into deck
-  const shuffleCurrentTile = useCallback(() => {
-    setDeck(
-      produce((draft) => {
-        if (draft.length > 0) {
-          const [currentTile] = draft.splice(0, 1);
-          currentTile.orientation = 'top'; // Reset orientation
-          const insertIndex = Math.floor(Math.random() * draft.length);
-          draft.splice(insertIndex, 0, currentTile);
-        }
-      })
-    );
-    setCurrentRotations(0); // Reset rotation count
-  }, []);
+  // Handle shuffling current tile
+  const handleShuffleTile = useCallback(() => {
+    if (!gameId) return;
+    shuffleTileMutation.mutate(gameId, {
+      onSuccess: () => {
+        utils.game.getGameState.invalidate();
+      },
+    });
+  }, [gameId]);
 
   const getRotatedEdges = useCallback(
-    (
-      tile: TileEntity,
-      orientation: TileOrientation
-    ): [Edge, Edge, Edge, Edge] => {
+    (tile: TileEntity, orientation: Orientation): [Edge, Edge, Edge, Edge] => {
       // Get the base edges first
       const baseEdges = getEdgesFromEntities(tile.entities);
 
@@ -143,7 +122,7 @@ export const Field: FC = () => {
   );
 
   const isValidPlacement = useCallback(
-    (tile1: GridTileEntity, pos: Position, tile2: TileEntity): boolean => {
+    (tile1: PlacedTile, pos: Pos, tile2: TileEntity): boolean => {
       const dx = pos.x - tile1.position.x;
       const dy = pos.y - tile1.position.y;
 
@@ -179,28 +158,20 @@ export const Field: FC = () => {
     [getRotatedEdges]
   );
 
-  // Update getValidPositions to handle rotation limits
+  // Modify getValidPositions to use absolute coordinates for the first tile
   const getValidPositions = useCallback(() => {
-    if (deck.length === 0) return [];
+    const currentTile = gameStateQuery.data?.currentTile;
+    if (!currentTile) return [];
 
-    const validPositions: Position[] = [];
+    const validPositions: Pos[] = [];
 
-    // If no tiles have been placed yet, calculate center position
-    if (placedTiles.length === 0) {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (rect) {
-        const centerX = Math.floor(
-          (-offset.x + rect.width / 2) / (CELL_SIZE * zoom)
-        );
-        const centerY = Math.floor(
-          (-offset.y + rect.height / 2) / (CELL_SIZE * zoom)
-        );
-        validPositions.push({ x: centerX, y: centerY });
-        return validPositions;
-      }
+    // If no tiles have been placed yet, return (0,0) as the only valid position
+    if (gameStateQuery.data?.placedTiles.length === 0) {
+      validPositions.push({ x: 0, y: 0 });
+      return validPositions;
     }
 
-    placedTiles.forEach((tile) => {
+    gameStateQuery.data?.placedTiles.forEach((tile) => {
       const adjacentPositions = [
         { x: tile.position.x + 1, y: tile.position.y },
         { x: tile.position.x - 1, y: tile.position.y },
@@ -210,7 +181,7 @@ export const Field: FC = () => {
 
       adjacentPositions.forEach((pos) => {
         // Check if the position is already occupied
-        const isOccupied = placedTiles.some(
+        const isOccupied = gameStateQuery.data?.placedTiles.some(
           (t) => t.position.x === pos.x && t.position.y === pos.y
         );
         if (isOccupied) return;
@@ -219,7 +190,7 @@ export const Field: FC = () => {
         if (validPositions.some((p) => p.x === pos.x && p.y === pos.y)) return;
 
         // Get all adjacent tiles to this position
-        const adjacentTiles = placedTiles.filter((t) => {
+        const adjacentTiles = gameStateQuery.data?.placedTiles.filter((t) => {
           const dx = pos.x - t.position.x;
           const dy = pos.y - t.position.y;
           return (
@@ -229,7 +200,7 @@ export const Field: FC = () => {
 
         // Check if the selected tile matches all adjacent tiles
         const canPlace = adjacentTiles.every((adjTile) =>
-          isValidPlacement(adjTile, pos, deck[0])
+          isValidPlacement(adjTile, pos, currentTile)
         );
 
         if (canPlace) {
@@ -238,28 +209,27 @@ export const Field: FC = () => {
       });
     });
 
-    // If no valid positions found, rotate the tile or shuffle it back
-    if (validPositions.length === 0 && deck[0]) {
-      if (currentRotations < 3) {
-        console.log('rotating tile', currentRotations);
-        rotateTile();
+    return validPositions;
+  }, [gameStateQuery.data, isValidPlacement]);
+
+  // Add a separate effect to handle auto-rotation/shuffle
+  useEffect(() => {
+    const currentTile = gameStateQuery.data?.currentTile;
+    if (!currentTile) return;
+
+    const validPositions = getValidPositions();
+    if (validPositions.length === 0) {
+      if ((gameStateQuery.data?.currentRotations ?? 0) < 3) {
+        handleRotateTile();
       } else {
-        console.log('shuffling tile', currentRotations);
-        shuffleCurrentTile();
+        handleShuffleTile();
       }
     }
-
-    return validPositions;
   }, [
-    deck,
-    isValidPlacement,
-    placedTiles,
-    offset.x,
-    offset.y,
-    zoom,
-    rotateTile,
-    currentRotations,
-    shuffleCurrentTile,
+    gameStateQuery.data,
+    getValidPositions,
+    handleRotateTile,
+    handleShuffleTile,
   ]);
 
   const handleMouseDown = useCallback(
@@ -268,7 +238,7 @@ export const Field: FC = () => {
 
       // Don't start dragging if clicking on a valid placement position
       const rect = containerRef.current?.getBoundingClientRect();
-      if (rect && deck[0]) {
+      if (rect && gameStateQuery.data?.currentTile) {
         const mouseX = (e.clientX - rect.left - offset.x) / zoom;
         const mouseY = (e.clientY - rect.top - offset.y) / zoom;
         const gridX = Math.floor(mouseX / CELL_SIZE);
@@ -283,12 +253,12 @@ export const Field: FC = () => {
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
     },
-    [deck, getValidPositions, offset.x, offset.y, zoom]
+    [gameStateQuery.data, getValidPositions, offset.x, offset.y, zoom]
   );
 
   // Clamp offset to prevent seeing placed tiles and add buffer zone
   const clampOffset = useCallback(
-    (newOffset: Position): Position => {
+    (newOffset: Pos): Pos => {
       // Calculate the visible area dimensions
       const getVisibleArea = () => {
         const rect = containerRef.current?.getBoundingClientRect();
@@ -302,7 +272,7 @@ export const Field: FC = () => {
       const { width, height } = getVisibleArea();
 
       // Find the bounds of placed tiles
-      if (placedTiles.length === 0) {
+      if (gameStateQuery.data?.placedTiles.length === 0) {
         // Allow free movement if no tiles are placed
         return {
           x: Math.max(Math.min(newOffset.x, width / 2), -width / 2),
@@ -310,7 +280,7 @@ export const Field: FC = () => {
         };
       }
 
-      const bounds = placedTiles.reduce(
+      const bounds = (gameStateQuery.data?.placedTiles ?? []).reduce(
         (acc, tile) => ({
           minX: Math.min(acc.minX, tile.position.x),
           maxX: Math.max(acc.maxX, tile.position.x),
@@ -346,7 +316,7 @@ export const Field: FC = () => {
         y: Math.max(Math.min(newOffset.y, maxY), minY),
       };
     },
-    [placedTiles, zoom]
+    [gameStateQuery.data, zoom]
   );
 
   const handleMouseMove = useCallback(
@@ -388,9 +358,9 @@ export const Field: FC = () => {
       const contentX = (mouseX - offset.x) / zoom;
       const contentY = (mouseY - offset.y) / zoom;
 
-      // Calculate new zoom
-      const delta = Math.sign(e.deltaY) * ZOOM_SPEED;
-      const newZoom = Math.min(Math.max(zoom - delta, MIN_ZOOM), MAX_ZOOM);
+      // Calculate new zoom using the actual deltaY value for smoother zoom
+      const zoomFactor = 1 - e.deltaY * ZOOM_SPEED;
+      const newZoom = Math.min(Math.max(zoom * zoomFactor, MIN_ZOOM), MAX_ZOOM);
 
       // Calculate new offset to keep the point under cursor in the same place
       const newOffset = {
@@ -405,19 +375,9 @@ export const Field: FC = () => {
     [zoom, offset.x, offset.y, clampOffset]
   );
 
-  const handleDeckClick = useCallback(
-    (tile: TileEntity) => {
-      if (tile === deck[0]) {
-        rotateTile();
-      }
-    },
-    [deck, rotateTile]
-  );
-
   const handleGridClick = useCallback(
     (e: React.MouseEvent) => {
-      // Remove the drag detection check since it's preventing valid clicks
-      if (deck.length === 0 || isDragging) return;
+      if (!gameStateQuery.data?.currentTile || isDragging) return;
 
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -435,60 +395,15 @@ export const Field: FC = () => {
 
       if (!isValidPosition) return;
 
-      const isOccupied = placedTiles.some(
-        (tile) => tile.position.x === gridX && tile.position.y === gridY
-      );
-
-      if (isOccupied) return;
-
-      // If we have no tiles placed yet, or if the position is adjacent to existing tiles
-      if (
-        placedTiles.length === 0 ||
-        getValidPositions().some((pos) => pos.x === gridX && pos.y === gridY)
-      ) {
-        setPlacedTiles(
-          produce((draft) => {
-            draft.push({
-              ...deck[0],
-              position: { x: gridX, y: gridY },
-            });
-          })
-        );
-        setDeck(
-          produce((draft) => {
-            draft.shift();
-          })
-        );
-      }
+      handlePlaceTile({ x: gridX, y: gridY });
     },
-    [deck, isDragging, offset.x, offset.y, placedTiles, zoom, getValidPositions]
+    [gameStateQuery.data, isDragging, offset.x, offset.y, zoom, handlePlaceTile]
   );
 
-  // Update handleRestart to reset rotation count
+  // Handle restart game
   const handleRestart = useCallback(() => {
-    setCurrentRotations(0);
-    setDeck(shuffleDeck(CARCASSONNE_DECK.slice(1)));
-
-    // Reset placed tiles to just the start tile
-    const centerX = Math.floor(window.innerWidth / (2 * CELL_SIZE));
-    const centerY = Math.floor(window.innerHeight / (2 * CELL_SIZE));
-
-    setPlacedTiles([
-      {
-        ...CARCASSONNE_DECK[0],
-        position: { x: centerX, y: centerY },
-      },
-    ]);
-
-    // Center the view on the start tile
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setOffset({
-        x: rect.width / 2 - centerX * CELL_SIZE * zoom,
-        y: rect.height / 2 - centerY * CELL_SIZE * zoom,
-      });
-    }
-  }, [zoom]);
+    createGameMutation.mutate();
+  }, []);
 
   const generateGridBackground = () => {
     const totalSize = CELL_SIZE * GRID_CELLS * 2;
@@ -501,7 +416,7 @@ export const Field: FC = () => {
   };
 
   // Function to generate grid cell styles
-  const generateCellStyle = (pos: Position) => {
+  const generateCellStyle = (pos: Pos) => {
     const borderStyles = {
       borderTop: '1px solid ' + GRID_COLOR,
       borderRight: '1px solid ' + GRID_COLOR,
@@ -520,8 +435,6 @@ export const Field: FC = () => {
       ...borderStyles,
     } as const;
   };
-
-  // Update the renderTile function
 
   return (
     <div className="flex h-screen w-screen">
@@ -543,7 +456,7 @@ export const Field: FC = () => {
         >
           <div className="absolute" style={generateGridBackground()}>
             {/* Grid cells for placed tiles */}
-            {placedTiles.map((tile) => (
+            {gameStateQuery.data?.placedTiles.map((tile) => (
               <div
                 key={`grid-${tile.position.x}-${tile.position.y}`}
                 style={generateCellStyle(tile.position)}
@@ -551,7 +464,7 @@ export const Field: FC = () => {
             ))}
 
             {/* Grid cells for valid positions */}
-            {deck[0] &&
+            {gameStateQuery.data?.currentTile &&
               getValidPositions().map((pos) => (
                 <div
                   key={`valid-${pos.x}-${pos.y}`}
@@ -561,7 +474,7 @@ export const Field: FC = () => {
           </div>
 
           {/* Valid placement indicators */}
-          {deck[0] &&
+          {gameStateQuery.data?.currentTile &&
             getValidPositions().map((pos) => (
               <div
                 key={`${pos.x},${pos.y}`}
@@ -579,11 +492,12 @@ export const Field: FC = () => {
             ))}
 
           {/* Placed Tiles */}
-          {placedTiles.map((tile) => (
+          {gameStateQuery.data?.placedTiles.map((tile) => (
             <Tile
               key={tile.id}
               tile={tile}
               pos={tile.position}
+              showLabels={showLabels}
               data-testid="tile"
             />
           ))}
@@ -597,28 +511,40 @@ export const Field: FC = () => {
           className="text-center mb-2 font-semibold"
           data-testid="tile-counter"
         >
-          Tiles left: {deck.length}
+          Tiles left: {gameStateQuery.data?.deckSize ?? 0}
         </div>
-        {deck.length > 0 && (
+        {gameStateQuery.data?.currentTile && (
           <div
             data-testid="current-tile"
-            data-tile-id={deck[0]?.id}
+            data-tile-id={gameStateQuery.data.currentTile.id}
             className="w-20 h-20 border-2 flex items-center justify-center relative cursor-pointer hover:bg-gray-50 border-green-500 bg-green-200"
-            onClick={() => handleDeckClick(deck[0])}
+            onClick={handleRotateTile}
           >
-            <Tile tile={deck[0]} pos={{ x: 0, y: 0 }} data-testid="deck-tile" />
+            <Tile
+              tile={gameStateQuery.data.currentTile}
+              pos={{ x: 0, y: 0 }}
+              showLabels={showLabels}
+              data-testid="deck-tile"
+            />
             <button
               data-testid="rotate-button"
               className="absolute top-0 right-0 bg-blue-500 text-white p-1 rounded-bl text-xs"
               onClick={(e) => {
                 e.stopPropagation();
-                rotateTile();
+                handleRotateTile();
               }}
             >
               ⟳
             </button>
           </div>
         )}
+        <button
+          data-testid="toggle-labels-button"
+          className="mt-2 bg-blue-500 text-white p-2 rounded text-sm hover:bg-blue-600"
+          onClick={() => setShowLabels(!showLabels)}
+        >
+          {showLabels ? 'Hide' : 'Show'} Labels
+        </button>
         <button
           data-testid="restart-button"
           className="mt-2 bg-red-500 text-white p-2 rounded text-sm hover:bg-red-600"
