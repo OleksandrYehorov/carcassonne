@@ -11,9 +11,11 @@ import {
 } from '@carcassonne/shared';
 import { produce } from 'immer';
 import { shuffleDeck } from './deck';
+
 interface CompletedRoad {
   length: number;
   tiles: Set<string>;
+  positions: Pos[];
 }
 
 export class GameEngine {
@@ -21,6 +23,7 @@ export class GameEngine {
   private deck: TileEntity[];
   private currentRotations = 0;
   private score = 0;
+  private completedRoads: CompletedRoad[] = [];
 
   constructor(startTile: TileEntity, deck: TileEntity[]) {
     // Initialize with start tile at center
@@ -181,21 +184,23 @@ export class GameEngine {
     return true;
   }
 
-  private checkCompletedRoads(position: Pos): CompletedRoad | null {
+  private checkCompletedRoads(position: Pos): CompletedRoad[] {
     const placedTile = this.placedTiles.find(
       (t) => t.position.x === position.x && t.position.y === position.y
     );
-    if (!placedTile) return null;
+    if (!placedTile) return [];
 
     const roadEntities = placedTile.entities.filter((e) => e.type === 'road');
+    const completedRoads: CompletedRoad[] = [];
+
     for (const road of roadEntities) {
       const completedRoad = this.isRoadComplete(placedTile, road);
       if (completedRoad) {
         this.score += completedRoad.length;
-        return completedRoad;
+        completedRoads.push(completedRoad);
       }
     }
-    return null;
+    return completedRoads;
   }
 
   private isRoadComplete(
@@ -284,6 +289,10 @@ export class GameEngine {
       return {
         length: visitedTiles.size,
         tiles: visitedTiles,
+        positions: Array.from(visitedTiles).map((tile) => {
+          const [x, y] = tile.split(',').map(Number);
+          return { x, y };
+        }),
       };
     }
     return null;
@@ -351,12 +360,16 @@ export class GameEngine {
     this.deck = remainingDeck;
     this.currentRotations = 0;
 
-    // Check for completed roads after placing the tile
-    const completedRoad = this.checkCompletedRoads(position);
-
-    if (completedRoad) {
-      // Score is already updated in checkCompletedRoads
-      // You can emit an event or handle the completion in some way here
+    // Check for all completed roads after placing the tile
+    const completedRoads = this.checkCompletedRoads(position);
+    if (completedRoads.length > 0) {
+      this.completedRoads.push(...completedRoads);
+      // Clear completed roads after 3 seconds
+      setTimeout(() => {
+        this.completedRoads = this.completedRoads.filter(
+          (road) => !completedRoads.includes(road)
+        );
+      }, 3000);
     }
 
     return true;
@@ -408,5 +421,9 @@ export class GameEngine {
       default:
         return pos;
     }
+  }
+
+  public getCompletedRoads(): CompletedRoad[] {
+    return [...this.completedRoads];
   }
 }

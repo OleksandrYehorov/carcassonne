@@ -42,6 +42,7 @@ export const gameRouter = router({
       currentRotations: game.getCurrentRotations(),
       validPositions: game.getValidPositions(),
       score: game.getScore(),
+      completedRoads: game.getCompletedRoads(),
     };
   }),
 

@@ -19,6 +19,7 @@ import {
   MIN_ZOOM,
   ZOOM_SPEED,
 } from './constants';
+import { useToast } from '@/hooks/use-toast';
 
 export const Field: FC = () => {
   const utils = trpc.useUtils();
@@ -43,6 +44,7 @@ export const Field: FC = () => {
   const [dragStart, setDragStart] = useState<Pos>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [showLabels, setShowLabels] = useState(false);
+  const { toast } = useToast();
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -436,71 +438,96 @@ export const Field: FC = () => {
     } as const;
   };
 
-  return (
-    <div className="flex h-screen w-screen">
-      <div
-        ref={containerRef}
-        className="flex-1 relative overflow-hidden cursor-move"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-        onClick={handleGridClick}
-      >
-        <div
-          className="absolute origin-top-left"
-          style={{
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-          }}
-        >
-          <div className="absolute" style={generateGridBackground()}>
-            {/* Grid cells for placed tiles */}
-            {gameStateQuery.data?.placedTiles.map((tile) => (
-              <div
-                key={`grid-${tile.position.x}-${tile.position.y}`}
-                style={generateCellStyle(tile.position)}
-              />
-            ))}
+  // Modify the useEffect for road completion messages
+  useEffect(() => {
+    const completedRoads = gameStateQuery.data?.completedRoads;
+    if (completedRoads && completedRoads.length > 0) {
+      if (completedRoads.length === 1) {
+        toast({
+          title: 'Road Completed!',
+          description: `Length: ${completedRoads[0].length} tiles`,
+          duration: 5000,
+        });
+      } else {
+        const messages = completedRoads.map(
+          (road, index) => `Road ${index + 1}: ${road.length} tiles`
+        );
+        toast({
+          title: 'Multiple Roads Completed!',
+          description: messages.join('\n'),
+          duration: 5000,
+        });
+      }
+    }
+  }, [gameStateQuery.data?.completedRoads]);
 
-            {/* Grid cells for valid positions */}
+  return (
+    <>
+      <div className="flex h-screen w-screen">
+        <div
+          ref={containerRef}
+          className="flex-1 relative overflow-hidden cursor-move"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+          onClick={handleGridClick}
+        >
+          <div
+            className="absolute origin-top-left"
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+            }}
+          >
+            <div className="absolute" style={generateGridBackground()}>
+              {/* Grid cells for placed tiles */}
+              {gameStateQuery.data?.placedTiles.map((tile) => (
+                <div
+                  key={`grid-${tile.position.x}-${tile.position.y}`}
+                  style={generateCellStyle(tile.position)}
+                />
+              ))}
+
+              {/* Grid cells for valid positions */}
+              {gameStateQuery.data?.currentTile &&
+                getValidPositions().map((pos) => (
+                  <div
+                    key={`valid-${pos.x}-${pos.y}`}
+                    style={generateCellStyle(pos)}
+                  />
+                ))}
+            </div>
+
+            {/* Valid placement indicators */}
             {gameStateQuery.data?.currentTile &&
               getValidPositions().map((pos) => (
                 <div
-                  key={`valid-${pos.x}-${pos.y}`}
-                  style={generateCellStyle(pos)}
+                  key={`${pos.x},${pos.y}`}
+                  data-testid="valid-position"
+                  className="absolute flex items-center justify-center border-2 border-green-500 bg-green-200 opacity-50 z-10"
+                  style={{
+                    width: CELL_SIZE,
+                    height: CELL_SIZE,
+                    transform: `translate(
+                      ${pos.x * CELL_SIZE}px,
+                      ${pos.y * CELL_SIZE}px
+                    )`,
+                  }}
                 />
               ))}
-          </div>
 
-          {/* Valid placement indicators */}
-          {gameStateQuery.data?.currentTile &&
-            getValidPositions().map((pos) => (
-              <div
-                key={`${pos.x},${pos.y}`}
-                data-testid="valid-position"
-                className="absolute flex items-center justify-center border-2 border-green-500 bg-green-200 opacity-50 z-10"
-                style={{
-                  width: CELL_SIZE,
-                  height: CELL_SIZE,
-                  transform: `translate(
-                    ${pos.x * CELL_SIZE}px,
-                    ${pos.y * CELL_SIZE}px
-                  )`,
-                }}
+            {/* Placed Tiles */}
+            {gameStateQuery.data?.placedTiles.map((tile) => (
+              <Tile
+                key={tile.id}
+                tile={tile}
+                pos={tile.position}
+                showLabels={showLabels}
+                data-testid="tile"
               />
             ))}
-
-          {/* Placed Tiles */}
-          {gameStateQuery.data?.placedTiles.map((tile) => (
-            <Tile
-              key={tile.id}
-              tile={tile}
-              pos={tile.position}
-              showLabels={showLabels}
-              data-testid="tile"
-            />
-          ))}
+          </div>
         </div>
       </div>
       <div
@@ -556,6 +583,7 @@ export const Field: FC = () => {
           Restart Game
         </button>
       </div>
-    </div>
+      {/* <Toaster /> */}
+    </>
   );
 };

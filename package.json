@@ -11,5 +11,8 @@
     "build": "bun run --filter './apps/*' build",
     "start": "bun run --filter './apps/*' start",
     "interactive-update": "bun x npm-check-updates -ws --root --format group -i"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }
