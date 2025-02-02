@@ -1,11 +1,11 @@
+import { PlacedTileEntity, Pos, TileEntity } from '@carcassonne/shared';
 import { FC } from 'react';
-import { Pos, TileEntity } from '@carcassonne/shared';
-import { getEdgesFromEntities } from '../utils/helpers';
-import { TILE_IMAGES } from '../utils/tileImagesConfig';
 import { CELL_SIZE } from '../utils/constants';
+import { getEdgesFromEntities } from '../utils/helpers';
+import { TILE_IMAGES } from '@/utils/tileImagesConfig';
 
 interface TileProps {
-  tile: TileEntity;
+  tile: PlacedTileEntity | TileEntity;
   pos: Pos;
   showLabels?: boolean;
   'data-testid'?: string;
@@ -26,13 +26,41 @@ export const Tile: FC<TileProps> = ({
         (entity.from === 'deadEnd' || entity.to === 'deadEnd'))
   );
 
-  // Calculate rotation angle based on orientation
-  const rotationDegrees = {
-    top: 0,
-    right: 90,
-    bottom: 180,
-    left: 270,
-  }[tile.orientation];
+  // Helper to get rotation angle based on orientation
+  const getRotation = () => {
+    switch (tile.orientation) {
+      case 'right':
+        return 90;
+      case 'bottom':
+        return 180;
+      case 'left':
+        return 270;
+      default:
+        return 0;
+    }
+  };
+
+  // Helper to get meeple position styles
+  const getMeepleStyles = (
+    position: 'top' | 'right' | 'bottom' | 'left' | 'center'
+  ) => {
+    const baseStyles = {
+      position: 'absolute',
+      width: '20px',
+      height: '20px',
+      borderRadius: '50%',
+    } as const;
+
+    const positionStyles = {
+      top: { top: '5px', left: '50%', transform: 'translateX(-50%)' },
+      right: { top: '50%', right: '5px', transform: 'translateY(-50%)' },
+      bottom: { bottom: '5px', left: '50%', transform: 'translateX(-50%)' },
+      left: { top: '50%', left: '5px', transform: 'translateY(-50%)' },
+      center: { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
+    }[position];
+
+    return { ...baseStyles, ...positionStyles };
+  };
 
   return (
     <div
@@ -44,13 +72,13 @@ export const Tile: FC<TileProps> = ({
         transform: `translate(
           ${pos.x * CELL_SIZE}px,
           ${pos.y * CELL_SIZE}px
-        ) rotate(${rotationDegrees}deg)`,
+        ) rotate(${getRotation()}deg)`,
       }}
     >
       {/* Tile content */}
       <img
         src={TILE_IMAGES[tile.tileType]}
-        alt="Tile"
+        alt={`Tile ${tile.id}`}
         className="absolute inset-0 w-full h-full object-cover"
         draggable={false}
       />
@@ -121,6 +149,21 @@ export const Tile: FC<TileProps> = ({
           {tile.entities.some((e) => e.type === 'monastery') ? 'M' : '•'}
         </div>
       )}
+
+      {/* Add meeple visualization */}
+      {tile.entities.map((entity, index) => {
+        if (!entity.meeple) return null;
+        return (
+          <div
+            key={`meeple-${index}`}
+            style={{
+              ...getMeepleStyles(entity.meeple.position),
+              backgroundColor: entity.meeple.color,
+            }}
+            className="shadow-md"
+          />
+        );
+      })}
     </div>
   );
 };

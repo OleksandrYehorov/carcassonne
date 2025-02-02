@@ -4,11 +4,13 @@ import {
   Edge,
   MonasteryEntity,
   Orientation,
-  PlacedTile,
+  PlacedTileEntity,
   Pos,
   RoadEdge,
   RoadEntity,
   TileEntity,
+  Player,
+  PlayerColor,
 } from '@carcassonne/shared';
 import { produce } from 'immer';
 import { shuffleDeck } from './deck';
@@ -32,15 +34,18 @@ interface CompletedMonastery {
 }
 
 export class GameEngine {
-  private placedTiles: PlacedTile[];
+  private placedTiles: PlacedTileEntity[];
   private deck: TileEntity[];
   private currentRotations = 0;
   private score = 0;
   private completedRoads: CompletedRoad[] = [];
   private completedCities: CompletedCity[] = [];
   private completedMonasteries: CompletedMonastery[] = [];
+  private players: Player[];
+  private currentPlayerIndex: number;
+  private lastPlacedTilePos: Pos | null = null;
 
-  constructor(startTile: TileEntity, deck: TileEntity[]) {
+  constructor(startTile: TileEntity, deck: TileEntity[], playerCount: number) {
     // Initialize with start tile at center
     this.placedTiles = [
       {
@@ -49,6 +54,17 @@ export class GameEngine {
       },
     ];
     this.deck = shuffleDeck(deck);
+    this.findValidTilePlacement();
+
+    // Initialize players
+    const colors: PlayerColor[] = ['yellow', 'red', 'green', 'blue', 'black'];
+    this.players = Array.from({ length: playerCount }).map((_, index) => ({
+      id: crypto.randomUUID(),
+      color: colors[index],
+      meeples: 7,
+      score: 0,
+    }));
+    this.currentPlayerIndex = 0;
   }
 
   private getEdgesFromEntities(
@@ -108,7 +124,7 @@ export class GameEngine {
   }
 
   private isValidPlacement(
-    tile1: PlacedTile,
+    tile1: PlacedTileEntity,
     pos: Pos,
     tile2: TileEntity
   ): boolean {
@@ -229,13 +245,13 @@ export class GameEngine {
   }
 
   private isRoadComplete(
-    startTile: PlacedTile,
+    startTile: PlacedTileEntity,
     startRoad: RoadEntity
   ): CompletedRoad | null {
     const visitedTiles = new Set<string>();
     const visitedEdges = new Set<string>();
     const edgesToVisit: Array<{
-      tile: PlacedTile;
+      tile: PlacedTileEntity;
       road: RoadEntity;
       edge: RoadEdge;
     }> = [];
@@ -324,7 +340,7 @@ export class GameEngine {
   }
 
   private findConnectingRoad(
-    tile: PlacedTile,
+    tile: PlacedTileEntity,
     fromEdge: CityEdge
   ): RoadEntity | undefined {
     const oppositeEdge = this.getOppositeEdge(fromEdge);
@@ -385,12 +401,16 @@ export class GameEngine {
     if (!isValidPosition) return { success: false };
 
     const [currentTile, ...remainingDeck] = this.deck;
-    this.placedTiles.push({
-      ...currentTile,
-      position,
+    this.placedTiles = produce(this.placedTiles, (draft) => {
+      draft.push({
+        ...currentTile,
+        position,
+      });
     });
+
     this.deck = remainingDeck;
     this.currentRotations = 0;
+    this.lastPlacedTilePos = position;
 
     const completedRoads = this.checkCompletedRoads(position);
     const completedCities = this.checkCompletedCities(position);
@@ -415,23 +435,8 @@ export class GameEngine {
       0
     );
 
-    // Check if next tile can be placed
-    while (this.deck.length > 0 && this.getValidPositions().length === 0) {
-      // Try rotating current tile up to 3 times
-      let rotationsAttempted = 0;
-      while (rotationsAttempted < 3) {
-        this.rotateTile();
-        rotationsAttempted++;
-        if (this.getValidPositions().length > 0) {
-          break;
-        }
-      }
-
-      // If no valid position found after rotations, shuffle current tile
-      if (this.getValidPositions().length === 0) {
-        this.shuffleCurrentTile();
-      }
-    }
+    // Find valid placement for next tile
+    this.findValidTilePlacement();
 
     return {
       success: true,
@@ -445,7 +450,7 @@ export class GameEngine {
     return this.deck[0] || null;
   }
 
-  public getPlacedTiles(): PlacedTile[] {
+  public getPlacedTiles(): PlacedTileEntity[] {
     return [...this.placedTiles];
   }
 
@@ -518,13 +523,13 @@ export class GameEngine {
   }
 
   private isCityComplete(
-    startTile: PlacedTile,
+    startTile: PlacedTileEntity,
     startCity: CityEntity
   ): CompletedCity | null {
     const visitedTiles = new Set<string>();
     const visitedEdges = new Set<string>();
     const edgesToVisit: Array<{
-      tile: PlacedTile;
+      tile: PlacedTileEntity;
       edge: CityEdge;
     }> = [];
 
@@ -597,7 +602,7 @@ export class GameEngine {
   }
 
   private findConnectingCity(
-    tile: PlacedTile,
+    tile: PlacedTileEntity,
     fromEdge: CityEdge
   ): CityEntity | undefined {
     const oppositeEdge = this.getOppositeEdge(fromEdge);
@@ -672,14 +677,157 @@ export class GameEngine {
           ...surroundingTiles.map((t) => t!.id),
         ]);
 
-        completedMonasteries.push({
-          tiles: allTiles,
-          positions: [pos, ...surroundingPositions],
-          score: 9, // 1 point for monastery + 8 surrounding tiles
-        });
+        this.completedMonasteries = produce(
+          this.completedMonasteries,
+          (draft) => {
+            draft.push({
+              tiles: allTiles,
+              positions: [pos, ...surroundingPositions],
+              score: 9, // 1 point for monastery + 8 surrounding tiles
+            });
+          }
+        );
       }
     });
 
     return completedMonasteries;
+  }
+
+  public getCurrentPlayer(): Player {
+    return this.players[this.currentPlayerIndex];
+  }
+
+  public nextTurn(): void {
+    this.currentPlayerIndex =
+      (this.currentPlayerIndex + 1) % this.players.length;
+  }
+
+  public getPlayers(): Player[] {
+    return [...this.players];
+  }
+
+  // Add this helper method to check if a meeple can be placed on an entity
+  private canPlaceMeepleOnEntity(
+    entity: RoadEntity | CityEntity | MonasteryEntity,
+    position: 'top' | 'right' | 'bottom' | 'left' | 'center'
+  ): boolean {
+    switch (entity.type) {
+      case 'road':
+        // For roads, allow placement if the position matches the road's direction
+        const roadPositions = [entity.from, entity.to];
+        return position === 'center' || roadPositions.includes(position);
+
+      case 'city':
+        // For cities, allow placement if the position is one of the city's edges
+        return position === 'center' || entity.edges.includes(position);
+
+      case 'monastery':
+        // Monasteries only allow center placement
+        return position === 'center';
+
+      default:
+        return false;
+    }
+  }
+
+  // Add method to get valid meeple positions for the current tile
+  public getValidMeeplePositions(): (
+    | 'top'
+    | 'right'
+    | 'bottom'
+    | 'left'
+    | 'center'
+  )[] {
+    const currentTile = this.getCurrentTile();
+    if (!currentTile) return [];
+
+    const validPositions = new Set<
+      'top' | 'right' | 'bottom' | 'left' | 'center'
+    >();
+
+    currentTile.entities.forEach((entity) => {
+      (['top', 'right', 'bottom', 'left', 'center'] as const).forEach(
+        (position) => {
+          if (this.canPlaceMeepleOnEntity(entity, position)) {
+            validPositions.add(position);
+          }
+        }
+      );
+    });
+
+    return Array.from(validPositions);
+  }
+
+  // Update the placeMeeple method
+  public placeMeeple(
+    position: 'top' | 'right' | 'bottom' | 'left' | 'center'
+  ): boolean {
+    if (!this.lastPlacedTilePos) return false;
+
+    const currentPlayer = this.getCurrentPlayer();
+    if (currentPlayer.meeples <= 0) return false;
+
+    const tileIndex = this.placedTiles.findIndex(
+      (t) =>
+        t.position.x === this.lastPlacedTilePos?.x &&
+        t.position.y === this.lastPlacedTilePos?.y
+    );
+    if (tileIndex === -1) return false;
+
+    this.placedTiles = produce(this.placedTiles, (draft) => {
+      const tile = draft[tileIndex];
+      const entity = tile.entities.find((e) =>
+        this.canPlaceMeepleOnEntity(e, position)
+      );
+
+      if (entity) {
+        entity.meeple = {
+          playerId: currentPlayer.id,
+          position,
+          color: currentPlayer.color, // Add the player's color to the meeple
+        };
+      }
+    });
+
+    this.players = produce(this.players, (draft) => {
+      const player = draft[this.currentPlayerIndex];
+      player.meeples--;
+    });
+
+    this.lastPlacedTilePos = null;
+    this.nextTurn();
+    return true;
+  }
+
+  // Add new method to skip meeple placement
+  public skipMeeplePlacement(): void {
+    this.lastPlacedTilePos = null;
+    this.nextTurn();
+  }
+
+  // Add getter for lastPlacedTilePos
+  public getLastPlacedTilePos(): Pos | null {
+    return this.lastPlacedTilePos;
+  }
+
+  // Add this new method
+  private findValidTilePlacement(): void {
+    // Check if current tile has valid placements, if not try rotating or shuffling
+    while (this.deck.length > 0 && this.getValidPositions().length === 0) {
+      // Try rotating current tile up to 3 times
+      let rotationsAttempted = 0;
+      while (rotationsAttempted < 3) {
+        this.rotateTile();
+        rotationsAttempted++;
+        if (this.getValidPositions().length > 0) {
+          break;
+        }
+      }
+
+      // If no valid position found after rotations, shuffle current tile
+      if (this.getValidPositions().length === 0) {
+        this.shuffleCurrentTile();
+      }
+    }
   }
 }

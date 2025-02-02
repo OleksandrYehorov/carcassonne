@@ -39,20 +39,38 @@ export type Edge = {
   type: EdgeType;
 };
 
+export type PlayerColor = 'yellow' | 'red' | 'green' | 'blue' | 'black';
+
+export interface Player {
+  id: string;
+  color: PlayerColor;
+  meeples: number; // Number of available meeples (starts with 7)
+  score: number;
+}
+
+export type MeepleInfo = {
+  playerId: string;
+  position: 'top' | 'right' | 'bottom' | 'left' | 'center';
+  color: PlayerColor;
+};
+
 export type RoadEntity = {
   type: 'road';
   from: RoadEdge;
   to: RoadEdge;
+  meeple?: MeepleInfo;
 };
 
 export type CityEntity = {
   type: 'city';
   edges: CityEdge[];
   isFortified: boolean;
+  meeple?: MeepleInfo;
 };
 
 export type MonasteryEntity = {
   type: 'monastery';
+  meeple?: MeepleInfo;
 };
 
 export type TileEntity = {
@@ -62,7 +80,7 @@ export type TileEntity = {
   orientation: Orientation;
 };
 
-export type PlacedTile = TileEntity & {
+export type PlacedTileEntity = TileEntity & {
   position: Pos;
 };
 

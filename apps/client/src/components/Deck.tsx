@@ -2,23 +2,36 @@ import { Button } from '@/components/ui/button/button';
 import { trpc } from '../utils/trpc';
 import { Tile } from '@/components/Tile';
 import { skipToken } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 interface DeckProps {
   gameId: string | undefined;
   showLabels: boolean;
   setShowLabels: (show: boolean) => void;
-  handleRotateTile: () => void;
   handleRestart: () => void;
 }
 
 export const Deck: React.FC<DeckProps> = ({
-  gameId,
   showLabels,
   setShowLabels,
-  handleRotateTile,
   handleRestart,
+  gameId,
 }) => {
+  const utils = trpc.useUtils();
+
+  const { mutate: rotateTile } = trpc.game.rotateTile.useMutation();
+
   const gameStateQuery = trpc.game.getGameState.useQuery(gameId ?? skipToken);
+
+  // Handle tile rotation
+  const handleRotateTile = useCallback(() => {
+    if (!gameId) return;
+    rotateTile(gameId, {
+      onSuccess: () => {
+        utils.game.getGameState.invalidate();
+      },
+    });
+  }, [gameId, rotateTile, utils.game.getGameState]);
 
   return (
     <div

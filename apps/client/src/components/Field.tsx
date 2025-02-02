@@ -1,14 +1,15 @@
+import { PlayerInfo } from '@/components/PlayerInfo';
 import {
   Edge,
   Orientation,
-  PlacedTile,
+  PlacedTileEntity,
   Pos,
   TileEntity,
 } from '@carcassonne/shared';
 import { skipToken } from '@tanstack/react-query';
 import { produce } from 'immer';
 import { FC, useCallback, useEffect, useRef, useState } from 'react';
-import { Tile } from './Tile';
+import { toast } from 'sonner';
 import {
   CELL_SIZE,
   GRID_CELLS,
@@ -19,8 +20,9 @@ import {
 } from '../utils/constants';
 import { getEdgesFromEntities } from '../utils/helpers';
 import { trpc } from '../utils/trpc';
-import { toast } from 'sonner';
 import { Deck } from './Deck';
+import { Tile } from './Tile';
+import { MeeplePlacementOverlay } from '@/components/MeeplePlacementOverlay';
 
 export const Field: FC = () => {
   const utils = trpc.useUtils();
@@ -32,12 +34,11 @@ export const Field: FC = () => {
   const gameStateQuery = trpc.game.getGameState.useQuery(gameId ?? skipToken);
 
   // Mutations for game actions
-  const { mutateAsync: rotateTile } = trpc.game.rotateTile.useMutation();
   const { mutateAsync: placeTile } = trpc.game.placeTile.useMutation();
 
   // Create game on component mount
   useEffect(() => {
-    createGame();
+    createGame(3);
   }, [createGame]);
 
   const [offset, setOffset] = useState<Pos>({ x: 0, y: 0 });
@@ -45,6 +46,8 @@ export const Field: FC = () => {
   const [dragStart, setDragStart] = useState<Pos>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [showLabels, setShowLabels] = useState(false);
+  const [showMeeplePlacement, setShowMeeplePlacement] = useState(false);
+  const [lastPlacedTilePos, setLastPlacedTilePos] = useState<Pos | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -59,32 +62,28 @@ export const Field: FC = () => {
     }
   }, []);
 
-  // Handle tile rotation
-  const handleRotateTile = useCallback(() => {
-    if (!gameId) return;
-    rotateTile(gameId, {
-      onSuccess: () => {
-        utils.game.getGameState.invalidate();
-      },
-    });
-  }, [gameId, rotateTile, utils.game.getGameState]);
+  // Handle restart game
+  const handleRestart = useCallback(() => {
+    createGame(3);
+  }, [createGame]);
 
   // Handle tile placement
   const handlePlaceTile = useCallback(
     async (position: Pos) => {
       if (!gameId) return;
-      const { completedRoads, completedCities, completedMonasteries } =
-        await placeTile(
-          { gameId, position },
-          {
-            onSuccess: () => {
-              utils.game.getGameState.invalidate();
-            },
-          }
-        );
+      const result = await placeTile(
+        { gameId, position },
+        {
+          onSuccess: () => {
+            utils.game.getGameState.invalidate();
+            setShowMeeplePlacement(true);
+            setLastPlacedTilePos(position);
+          },
+        }
+      );
 
       // Show road completion messages
-      for (const road of completedRoads) {
+      for (const road of result.completedRoads) {
         toast.success('Road Completed!', {
           description: `Length: ${road.length} tiles`,
           duration: 5000,
@@ -94,7 +93,7 @@ export const Field: FC = () => {
       }
 
       // Show city completion messages
-      for (const city of completedCities) {
+      for (const city of result.completedCities) {
         toast.success('City Completed!', {
           description: `Score: ${city.score}`,
           duration: 5000,
@@ -104,7 +103,7 @@ export const Field: FC = () => {
       }
 
       // Show monastery completion messages
-      for (const monastery of completedMonasteries) {
+      for (const monastery of result.completedMonasteries) {
         toast.success('Monastery Completed!', {
           description: `Score: ${monastery.score} points`,
           duration: 5000,
@@ -145,7 +144,7 @@ export const Field: FC = () => {
   );
 
   const isValidPlacement = useCallback(
-    (tile1: PlacedTile, pos: Pos, tile2: TileEntity): boolean => {
+    (tile1: PlacedTileEntity, pos: Pos, tile2: TileEntity): boolean => {
       const dx = pos.x - tile1.position.x;
       const dy = pos.y - tile1.position.y;
 
@@ -411,11 +410,6 @@ export const Field: FC = () => {
     ]
   );
 
-  // Handle restart game
-  const handleRestart = useCallback(() => {
-    createGame();
-  }, [createGame]);
-
   const generateGridBackground = () => {
     const totalSize = CELL_SIZE * GRID_CELLS * 2;
     return {
@@ -447,9 +441,22 @@ export const Field: FC = () => {
     } as const;
   };
 
+  const currentPlayer = gameStateQuery.data?.currentPlayer;
+  const players = gameStateQuery.data?.players ?? [];
+
   return (
     <>
       <div className="flex h-screen w-screen">
+        <div className="w-64 bg-gray-100 p-4 flex flex-col gap-2">
+          <h2 className="text-xl font-bold mb-4">Players</h2>
+          {players.map((player) => (
+            <PlayerInfo
+              key={player.id}
+              player={player}
+              isCurrentPlayer={player.id === currentPlayer?.id}
+            />
+          ))}
+        </div>
         <div
           ref={containerRef}
           className="flex-1 relative overflow-hidden cursor-move"
@@ -513,15 +520,25 @@ export const Field: FC = () => {
                 data-testid="tile"
               />
             ))}
+
+            {/* Add meeple placement overlay */}
+            {showMeeplePlacement && lastPlacedTilePos && (
+              <MeeplePlacementOverlay
+                pos={lastPlacedTilePos}
+                setShowMeeplePlacement={setShowMeeplePlacement}
+                lastPlacedTilePos={lastPlacedTilePos}
+                setLastPlacedTilePos={setLastPlacedTilePos}
+                gameId={gameId}
+              />
+            )}
           </div>
         </div>
       </div>
       <Deck
-        gameId={gameId}
         showLabels={showLabels}
         setShowLabels={setShowLabels}
-        handleRotateTile={handleRotateTile}
         handleRestart={handleRestart}
+        gameId={gameId}
       />
     </>
   );

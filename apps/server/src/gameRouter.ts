@@ -21,17 +21,15 @@ const getGameInstance = (gameId: string) => {
 
 export const gameRouter = router({
   // Create a new game
-  createGame: publicProcedure.mutation(() => {
-    const [startTile, ...remainingDeck] = CARCASSONNE_DECK;
-    // .filter(
-    //   // TODO: TEMPORARY!!!! remove tiles that dont have roads
-    //   (tile) => tile.entities.some((e) => e.type === 'city')
-    // );
-    const gameId = crypto.randomUUID();
-    const game = new GameEngine(startTile, remainingDeck);
-    gameInstances.set(gameId, game);
-    return { gameId };
-  }),
+  createGame: publicProcedure
+    .input(z.number().min(2).max(5))
+    .mutation(({ input: playerCount }) => {
+      const [startTile, ...remainingDeck] = CARCASSONNE_DECK;
+      const gameId = crypto.randomUUID();
+      const game = new GameEngine(startTile, remainingDeck, playerCount);
+      gameInstances.set(gameId, game);
+      return { gameId };
+    }),
 
   // Get current game state
   getGameState: publicProcedure.input(z.string()).query(({ input: gameId }) => {
@@ -42,10 +40,13 @@ export const gameRouter = router({
       deckSize: game.getDeckSize(),
       currentRotations: game.getCurrentRotations(),
       validPositions: game.getValidPositions(),
+      validMeeplePositions: game.getValidMeeplePositions(),
       score: game.getScore(),
       completedRoads: game.getCompletedRoads(),
       completedCities: game.getCompletedCities(),
       completedMonasteries: game.getCompletedMonasteries(),
+      currentPlayer: game.getCurrentPlayer(),
+      players: game.getPlayers(),
     };
   }),
 
@@ -97,6 +98,49 @@ export const gameRouter = router({
       };
     }),
 
+  // Add skipMeeplePlacement endpoint
+  skipMeeplePlacement: publicProcedure
+    .input(z.string())
+    .mutation(({ input: gameId }) => {
+      const game = getGameInstance(gameId);
+      game.skipMeeplePlacement();
+
+      return {
+        currentTile: game.getCurrentTile(),
+        placedTiles: game.getPlacedTiles(),
+        players: game.getPlayers(),
+        currentPlayer: game.getCurrentPlayer(),
+      };
+    }),
+
+  // Update placeMeeple endpoint to return currentPlayer
+  placeMeeple: publicProcedure
+    .input(
+      z.object({
+        gameId: z.string(),
+        position: z.enum(['top', 'right', 'bottom', 'left', 'center']),
+      })
+    )
+    .mutation(({ input }) => {
+      const game = getGameInstance(input.gameId);
+      const success = game.placeMeeple(input.position);
+
+      if (!success) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'Failed to place meeple. Invalid position or no meeples remaining.',
+        });
+      }
+
+      return {
+        currentTile: game.getCurrentTile(),
+        placedTiles: game.getPlacedTiles(),
+        players: game.getPlayers(),
+        currentPlayer: game.getCurrentPlayer(),
+      };
+    }),
+
   // Shuffle current tile back into deck
   // shuffleCurrentTile: publicProcedure
   //   .input(z.string())
@@ -109,4 +153,18 @@ export const gameRouter = router({
   //       validPositions: game.getValidPositions(),
   //     };
   //   }),
+
+  // Add endpoint to get current player
+  getCurrentPlayer: publicProcedure
+    .input(z.string())
+    .query(({ input: gameId }) => {
+      const game = getGameInstance(gameId);
+      return game.getCurrentPlayer();
+    }),
+
+  // Add endpoint to get all players
+  getPlayers: publicProcedure.input(z.string()).query(({ input: gameId }) => {
+    const game = getGameInstance(gameId);
+    return game.getPlayers();
+  }),
 });
