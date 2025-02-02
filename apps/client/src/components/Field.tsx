@@ -34,8 +34,6 @@ export const Field: FC = () => {
   // Mutations for game actions
   const { mutateAsync: rotateTile } = trpc.game.rotateTile.useMutation();
   const { mutateAsync: placeTile } = trpc.game.placeTile.useMutation();
-  const { mutateAsync: shuffleTile } =
-    trpc.game.shuffleCurrentTile.useMutation();
 
   // Create game on component mount
   useEffect(() => {
@@ -75,15 +73,17 @@ export const Field: FC = () => {
   const handlePlaceTile = useCallback(
     async (position: Pos) => {
       if (!gameId) return;
-      const { completedRoads } = await placeTile(
-        { gameId, position },
-        {
-          onSuccess: () => {
-            utils.game.getGameState.invalidate();
-          },
-        }
-      );
+      const { completedRoads, completedCities, completedMonasteries } =
+        await placeTile(
+          { gameId, position },
+          {
+            onSuccess: () => {
+              utils.game.getGameState.invalidate();
+            },
+          }
+        );
 
+      // Show road completion messages
       for (const road of completedRoads) {
         toast.success('Road Completed!', {
           description: `Length: ${road.length} tiles`,
@@ -92,19 +92,29 @@ export const Field: FC = () => {
           position: 'top-center',
         });
       }
+
+      // Show city completion messages
+      for (const city of completedCities) {
+        toast.success('City Completed!', {
+          description: `Score: ${city.score}`,
+          duration: 5000,
+          className: 'bg-blue-500 text-white',
+          position: 'top-center',
+        });
+      }
+
+      // Show monastery completion messages
+      for (const monastery of completedMonasteries) {
+        toast.success('Monastery Completed!', {
+          description: `Score: ${monastery.score} points`,
+          duration: 5000,
+          className: 'bg-purple-500 text-white',
+          position: 'top-center',
+        });
+      }
     },
     [gameId, placeTile, utils.game.getGameState]
   );
-
-  // Handle shuffling current tile
-  const handleShuffleTile = useCallback(() => {
-    if (!gameId) return;
-    shuffleTile(gameId, {
-      onSuccess: () => {
-        utils.game.getGameState.invalidate();
-      },
-    });
-  }, [gameId, shuffleTile, utils.game.getGameState]);
 
   const getRotatedEdges = useCallback(
     (tile: TileEntity, orientation: Orientation): [Edge, Edge, Edge, Edge] => {
@@ -234,8 +244,6 @@ export const Field: FC = () => {
     if (validPositions.length === 0) {
       if ((gameStateQuery.data?.currentRotations ?? 0) < 3) {
         handleRotateTile();
-      } else {
-        handleShuffleTile();
       }
     }
   }, [
@@ -243,7 +251,6 @@ export const Field: FC = () => {
     gameStateQuery.data?.currentTile,
     getValidPositions,
     handleRotateTile,
-    handleShuffleTile,
   ]);
 
   const handleMouseDown = useCallback(
@@ -457,41 +464,6 @@ export const Field: FC = () => {
       ...borderStyles,
     } as const;
   };
-
-  // Modify the useEffect for road completion messages
-  // useEffect(() => {
-  //   const completedRoads = gameStateQuery.data?.completedRoads;
-  //   if (completedRoads && completedRoads.length > 0) {
-  //     if (completedRoads.length === 1) {
-  //       toast({
-  //         title: 'Road Completed!',
-  //         description: `Length: ${completedRoads[0].length} tiles`,
-  //         duration: 5000,
-  //         className:
-  //           'top-0 left-1/2 -translate-x-1/2 flex fixed md:max-w-[420px] md:top-4 md:right-4',
-  //         style: {
-  //           backgroundColor: '#4ade80',
-  //           color: '#ffffff',
-  //         },
-  //       });
-  //     } else {
-  //       const messages = completedRoads.map(
-  //         (road, index) => `Road ${index + 1}: ${road.length} tiles`
-  //       );
-  //       toast({
-  //         title: 'Multiple Roads Completed!',
-  //         description: messages.join('\n'),
-  //         duration: 5000,
-  //         className:
-  //           'top-0 left-1/2 -translate-x-1/2 flex fixed md:max-w-[420px] md:top-4 md:right-4',
-  //         style: {
-  //           backgroundColor: '#4ade80',
-  //           color: '#ffffff',
-  //         },
-  //       });
-  //     }
-  //   }
-  // }, [gameStateQuery.data?.completedRoads]);
 
   return (
     <>

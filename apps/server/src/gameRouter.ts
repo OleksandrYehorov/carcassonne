@@ -22,10 +22,11 @@ const getGameInstance = (gameId: string) => {
 export const gameRouter = router({
   // Create a new game
   createGame: publicProcedure.mutation(() => {
-    const [startTile, ...remainingDeck] = CARCASSONNE_DECK.filter(
-      // TODO: TEMPORARY!!!! remove tiles that dont have roads
-      (tile) => tile.entities.some((e) => e.type === 'road')
-    );
+    const [startTile, ...remainingDeck] = CARCASSONNE_DECK;
+    // .filter(
+    //   // TODO: TEMPORARY!!!! remove tiles that dont have roads
+    //   (tile) => tile.entities.some((e) => e.type === 'city')
+    // );
     const gameId = crypto.randomUUID();
     const game = new GameEngine(startTile, remainingDeck);
     gameInstances.set(gameId, game);
@@ -43,6 +44,8 @@ export const gameRouter = router({
       validPositions: game.getValidPositions(),
       score: game.getScore(),
       completedRoads: game.getCompletedRoads(),
+      completedCities: game.getCompletedCities(),
+      completedMonasteries: game.getCompletedMonasteries(),
     };
   }),
 
@@ -89,19 +92,21 @@ export const gameRouter = router({
         validPositions: game.getValidPositions(),
         score: game.getScore(),
         completedRoads: placeTileResult.completedRoads,
+        completedCities: placeTileResult.completedCities,
+        completedMonasteries: placeTileResult.completedMonasteries,
       };
     }),
 
   // Shuffle current tile back into deck
-  shuffleCurrentTile: publicProcedure
-    .input(z.string())
-    .mutation(({ input: gameId }) => {
-      const game = getGameInstance(gameId);
-      game.shuffleCurrentTile();
-      return {
-        currentTile: game.getCurrentTile(),
-        deckSize: game.getDeckSize(),
-        validPositions: game.getValidPositions(),
-      };
-    }),
+  // shuffleCurrentTile: publicProcedure
+  //   .input(z.string())
+  //   .mutation(({ input: gameId }) => {
+  //     const game = getGameInstance(gameId);
+  //     game.shuffleCurrentTile();
+  //     return {
+  //       currentTile: game.getCurrentTile(),
+  //       deckSize: game.getDeckSize(),
+  //       validPositions: game.getValidPositions(),
+  //     };
+  //   }),
 });

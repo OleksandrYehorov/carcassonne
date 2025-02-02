@@ -51,9 +51,13 @@ export type CityEntity = {
   isFortified: boolean;
 };
 
+export type MonasteryEntity = {
+  type: 'monastery';
+};
+
 export type TileEntity = {
   id: string;
-  entities: (RoadEntity | CityEntity)[];
+  entities: (RoadEntity | CityEntity | MonasteryEntity)[];
   tileType: TileType;
   orientation: Orientation;
 };

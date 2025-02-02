@@ -20,7 +20,10 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
       tileType: 'MONASTERY_ROAD',
-      entities: [{ type: 'road', from: 'bottom', to: 'deadEnd' }],
+      entities: [
+        { type: 'monastery' },
+        { type: 'road', from: 'bottom', to: 'deadEnd' },
+      ],
       orientation: 'top',
     })),
 
@@ -30,7 +33,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
       tileType: 'MONASTERY',
-      entities: [],
+      entities: [{ type: 'monastery' }],
       orientation: 'top',
     })),
 

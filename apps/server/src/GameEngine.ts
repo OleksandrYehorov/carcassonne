@@ -2,6 +2,7 @@ import {
   CityEdge,
   CityEntity,
   Edge,
+  MonasteryEntity,
   Orientation,
   PlacedTile,
   Pos,
@@ -18,12 +19,26 @@ interface CompletedRoad {
   positions: Pos[];
 }
 
+interface CompletedCity {
+  tiles: Set<string>;
+  positions: Pos[];
+  score: number; // Cities score 2 points per tile
+}
+
+interface CompletedMonastery {
+  tiles: Set<string>; // Set of tile IDs that complete the monastery
+  positions: Pos[]; // Positions of all tiles involved (monastery + surrounding)
+  score: number; // 1 point per tile (monastery + surrounding tiles)
+}
+
 export class GameEngine {
   private placedTiles: PlacedTile[];
   private deck: TileEntity[];
   private currentRotations = 0;
   private score = 0;
   private completedRoads: CompletedRoad[] = [];
+  private completedCities: CompletedCity[] = [];
+  private completedMonasteries: CompletedMonastery[] = [];
 
   constructor(startTile: TileEntity, deck: TileEntity[]) {
     // Initialize with start tile at center
@@ -37,7 +52,7 @@ export class GameEngine {
   }
 
   private getEdgesFromEntities(
-    entities: (RoadEntity | CityEntity)[]
+    entities: (RoadEntity | CityEntity | MonasteryEntity)[]
   ): [Edge, Edge, Edge, Edge] {
     const edges: [Edge, Edge, Edge, Edge] = [
       { type: 'grass' },
@@ -352,9 +367,14 @@ export class GameEngine {
     return oppositeEdges[edge];
   }
 
-  public placeTile(
-    position: Pos
-  ): { success: true; completedRoads: CompletedRoad[] } | { success: false } {
+  public placeTile(position: Pos):
+    | {
+        success: true;
+        completedRoads: CompletedRoad[];
+        completedCities: CompletedCity[];
+        completedMonasteries: CompletedMonastery[];
+      }
+    | { success: false } {
     if (this.deck.length === 0) return { success: false };
 
     const validPositions = this.getValidPositions();
@@ -373,11 +393,34 @@ export class GameEngine {
     this.currentRotations = 0;
 
     const completedRoads = this.checkCompletedRoads(position);
+    const completedCities = this.checkCompletedCities(position);
+    const completedMonasteries = this.checkCompletedMonasteries(position);
+
+    // Store completed features
     if (completedRoads.length > 0) {
       this.completedRoads.push(...completedRoads);
     }
+    if (completedCities.length > 0) {
+      this.completedCities.push(...completedCities);
+    }
+    if (completedMonasteries.length > 0) {
+      this.completedMonasteries.push(...completedMonasteries);
+    }
 
-    return { success: true, completedRoads };
+    // Update total score
+    this.score += completedRoads.reduce((sum, road) => sum + road.length, 0);
+    this.score += completedCities.reduce((sum, city) => sum + city.score, 0);
+    this.score += completedMonasteries.reduce(
+      (sum, monastery) => sum + monastery.score,
+      0
+    );
+
+    return {
+      success: true,
+      completedRoads,
+      completedCities,
+      completedMonasteries,
+    };
   }
 
   public getCurrentTile(): TileEntity | null {
@@ -430,5 +473,195 @@ export class GameEngine {
 
   public getCompletedRoads(): CompletedRoad[] {
     return [...this.completedRoads];
+  }
+
+  private checkCompletedCities(position: Pos): CompletedCity[] {
+    const placedTile = this.placedTiles.find(
+      (t) => t.position.x === position.x && t.position.y === position.y
+    );
+    if (!placedTile) return [];
+
+    const cityEntities = placedTile.entities.filter((e) => e.type === 'city');
+    const uniqueCities: Map<string, CompletedCity> = new Map();
+
+    for (const city of cityEntities) {
+      const completedCity = this.isCityComplete(placedTile, city);
+      if (completedCity) {
+        const cityId = Array.from(completedCity.tiles).sort().join(',');
+        if (!uniqueCities.has(cityId)) {
+          uniqueCities.set(cityId, completedCity);
+        }
+      }
+    }
+
+    const dedupedCompletedCities = Array.from(uniqueCities.values());
+
+    return dedupedCompletedCities;
+  }
+
+  private isCityComplete(
+    startTile: PlacedTile,
+    startCity: CityEntity
+  ): CompletedCity | null {
+    const visitedTiles = new Set<string>();
+    const visitedEdges = new Set<string>();
+    const edgesToVisit: Array<{
+      tile: PlacedTile;
+      edge: CityEdge;
+    }> = [];
+
+    // Add initial city's edges to visit
+    startCity.edges.forEach((edge) => {
+      const rotatedEdge = this.rotateEdge(edge, startTile.orientation);
+      edgesToVisit.push({ tile: startTile, edge: rotatedEdge as CityEdge });
+    });
+
+    while (edgesToVisit.length > 0) {
+      const current = edgesToVisit.pop();
+      if (!current) {
+        continue;
+      }
+
+      const tileKey = `${current.tile.position.x},${current.tile.position.y}`;
+      const edgeKey = `${tileKey}-${current.edge}`;
+
+      if (visitedEdges.has(edgeKey)) {
+        continue;
+      }
+      visitedEdges.add(edgeKey);
+      visitedTiles.add(tileKey);
+
+      const nextTilePos = this.getAdjacentPosition(
+        current.tile.position,
+        current.edge
+      );
+      const nextTile = this.placedTiles.find(
+        (t) => t.position.x === nextTilePos.x && t.position.y === nextTilePos.y
+      );
+
+      if (!nextTile) {
+        return null; // Incomplete city - edge not connected
+      }
+
+      const connectingCity = this.findConnectingCity(nextTile, current.edge);
+      if (!connectingCity) {
+        return null; // Incomplete city - no matching city edge
+      }
+
+      // Add the connecting city's other edges to visit
+      connectingCity.edges.forEach((edge) => {
+        const rotatedEdge = this.rotateEdge(edge, nextTile.orientation);
+        // if (rotatedEdge !== this.getOppositeEdge(current.edge)) {
+        edgesToVisit.push({ tile: nextTile, edge: rotatedEdge as CityEdge });
+        // }
+      });
+    }
+
+    const score = Array.from(visitedTiles).reduce((total, tileKey) => {
+      const [x, y] = tileKey.split(',').map(Number);
+      const tile = this.placedTiles.find(
+        (t) => t.position.x === x && t.position.y === y
+      );
+      if (!tile) return total;
+      const cityEntity = tile.entities.find((e) => e.type === 'city');
+      if (!cityEntity) return total;
+      return total + (cityEntity.isFortified ? 4 : 2);
+    }, 0);
+
+    return {
+      tiles: visitedTiles,
+      positions: Array.from(visitedTiles).map((tile) => {
+        const [x, y] = tile.split(',').map(Number);
+        return { x, y };
+      }),
+      score,
+    };
+  }
+
+  private findConnectingCity(
+    tile: PlacedTile,
+    fromEdge: CityEdge
+  ): CityEntity | undefined {
+    const oppositeEdge = this.getOppositeEdge(fromEdge);
+    return tile.entities
+      .filter((e) => e.type === 'city')
+      .find((city) =>
+        city.edges.some(
+          (edge) => this.rotateEdge(edge, tile.orientation) === oppositeEdge
+        )
+      );
+  }
+
+  public getCompletedCities(): CompletedCity[] {
+    return [...this.completedCities];
+  }
+
+  public getCompletedMonasteries(): CompletedMonastery[] {
+    return [...this.completedMonasteries];
+  }
+
+  private checkCompletedMonasteries(newTilePos: Pos): CompletedMonastery[] {
+    const completedMonasteries: CompletedMonastery[] = [];
+
+    // Check all positions that could contain a monastery that might be completed
+    // This includes the new tile and all adjacent tiles (including diagonals)
+    const positionsToCheck = [
+      newTilePos,
+      { x: newTilePos.x - 1, y: newTilePos.y - 1 },
+      { x: newTilePos.x, y: newTilePos.y - 1 },
+      { x: newTilePos.x + 1, y: newTilePos.y - 1 },
+      { x: newTilePos.x - 1, y: newTilePos.y },
+      { x: newTilePos.x + 1, y: newTilePos.y },
+      { x: newTilePos.x - 1, y: newTilePos.y + 1 },
+      { x: newTilePos.x, y: newTilePos.y + 1 },
+      { x: newTilePos.x + 1, y: newTilePos.y + 1 },
+    ];
+
+    positionsToCheck.forEach((pos) => {
+      const tile = this.placedTiles.find(
+        (t) => t.position.x === pos.x && t.position.y === pos.y
+      );
+
+      if (!tile) return;
+
+      // Check if this tile has a monastery
+      const hasMonastery = tile.entities.some((e) => e.type === 'monastery');
+      if (!hasMonastery) return;
+
+      // Get all surrounding positions for the monastery
+      const surroundingPositions = [
+        { x: pos.x - 1, y: pos.y - 1 },
+        { x: pos.x, y: pos.y - 1 },
+        { x: pos.x + 1, y: pos.y - 1 },
+        { x: pos.x - 1, y: pos.y },
+        { x: pos.x + 1, y: pos.y },
+        { x: pos.x - 1, y: pos.y + 1 },
+        { x: pos.x, y: pos.y + 1 },
+        { x: pos.x + 1, y: pos.y + 1 },
+      ];
+
+      // Check if all surrounding positions have tiles
+      const surroundingTiles = surroundingPositions.map((p) =>
+        this.placedTiles.find(
+          (t) => t.position.x === p.x && t.position.y === p.y
+        )
+      );
+
+      if (surroundingTiles.every((t) => t !== undefined)) {
+        // Monastery is complete! Add it to the result
+        const allTiles = new Set([
+          tile.id,
+          ...surroundingTiles.map((t) => t!.id),
+        ]);
+
+        completedMonasteries.push({
+          tiles: allTiles,
+          positions: [pos, ...surroundingPositions],
+          score: 9, // 1 point for monastery + 8 surrounding tiles
+        });
+      }
+    });
+
+    return completedMonasteries;
   }
 }

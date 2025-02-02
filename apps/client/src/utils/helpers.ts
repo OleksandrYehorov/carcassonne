@@ -1,7 +1,12 @@
-import { CityEntity, Edge, RoadEntity } from '@carcassonne/shared';
+import {
+  CityEntity,
+  Edge,
+  RoadEntity,
+  MonasteryEntity,
+} from '@carcassonne/shared';
 
 export const getEdgesFromEntities = (
-  entities: (RoadEntity | CityEntity)[]
+  entities: (RoadEntity | CityEntity | MonasteryEntity)[]
 ): [Edge, Edge, Edge, Edge] => {
   // Initialize all edges as grass
 
@@ -35,6 +40,7 @@ export const getEdgesFromEntities = (
         edges[edgeToIndex[entity.to]] = { type: 'road' };
       }
     }
+    // Monasteries don't affect edges
   });
 
   return edges as [Edge, Edge, Edge, Edge];

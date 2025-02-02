@@ -21,8 +21,9 @@ export const Tile: FC<TileProps> = ({
 
   const hasCenter = tile.entities.some(
     (entity) =>
-      entity.type === 'road' &&
-      (entity.from === 'deadEnd' || entity.to === 'deadEnd')
+      entity.type === 'monastery' ||
+      (entity.type === 'road' &&
+        (entity.from === 'deadEnd' || entity.to === 'deadEnd'))
   );
 
   // Calculate rotation angle based on orientation
@@ -117,7 +118,7 @@ export const Tile: FC<TileProps> = ({
             transform: 'translate(-50%, -50%)',
           }}
         >
-          •
+          {tile.entities.some((e) => e.type === 'monastery') ? 'M' : '•'}
         </div>
       )}
     </div>
