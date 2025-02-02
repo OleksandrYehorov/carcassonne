@@ -1,5 +1,3 @@
-import { Toaster } from '@/components/ui/toaster';
-import { useToast } from '@/hooks/use-toast';
 import {
   Edge,
   Orientation,
@@ -21,6 +19,8 @@ import {
 } from './constants';
 import { getEdgesFromEntities } from './helpers';
 import { trpc } from './utils/trpc';
+import { toast } from 'sonner';
+import { Deck } from './components/Deck';
 
 export const Field: FC = () => {
   const utils = trpc.useUtils();
@@ -47,7 +47,6 @@ export const Field: FC = () => {
   const [dragStart, setDragStart] = useState<Pos>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [showLabels, setShowLabels] = useState(false);
-  const { toast } = useToast();
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -73,30 +72,33 @@ export const Field: FC = () => {
   }, [gameId, rotateTile, utils.game.getGameState]);
 
   useEffect(() => {
-    toast({
-      title: 'Test title 1',
-      description: `Test description 1`,
-      duration: 5000,
-      className: 'bg-green-500 text-white',
-    });
     setTimeout(() => {
-      toast({
-        title: 'Test title 2',
-        description: `Test description 2`,
+      toast.success('Test title 1', {
+        description: 'Test description 1',
         duration: 5000,
         className: 'bg-green-500 text-white',
+        position: 'top-center',
+      });
+    }, 500);
+
+    setTimeout(() => {
+      toast.success('Test title 2', {
+        description: 'Test description 2',
+        duration: 5000,
+        className: 'bg-green-500 text-white',
+        position: 'top-center',
       });
     }, 1000);
 
     setTimeout(() => {
-      toast({
-        title: 'Test title 3',
-        description: `Test description 3`,
+      toast.success('Test title 3', {
+        description: 'Test description 3',
         duration: 5000,
         className: 'bg-green-500 text-white',
+        position: 'top-center',
       });
     }, 2000);
-  }, [toast]);
+  }, []);
 
   // Handle tile placement
   const handlePlaceTile = useCallback(
@@ -112,16 +114,15 @@ export const Field: FC = () => {
       );
 
       for (const road of completedRoads) {
-        toast({
-          title: 'Road Completed!',
+        toast.success('Road Completed!', {
           description: `Length: ${road.length} tiles`,
           duration: 5000,
-          // className:
-          //   'top-0 left-1/2 -translate-x-1/2 bg-green-500 text-white flex fixed max-w-[420px] top-4 right-4',
+          className: 'bg-green-500 text-white',
+          position: 'top-center',
         });
       }
     },
-    [gameId, placeTile, toast, utils.game.getGameState]
+    [gameId, placeTile, utils.game.getGameState]
   );
 
   // Handle shuffling current tile
@@ -590,60 +591,13 @@ export const Field: FC = () => {
           </div>
         </div>
       </div>
-      <div
-        className="w-24 bg-gray-100 flex flex-col gap-2 p-2"
-        data-testid="deck"
-      >
-        <div className="text-center font-bold text-lg" data-testid="score">
-          Score: {gameStateQuery.data?.score ?? 0}
-        </div>
-        <div
-          className="text-center mb-2 font-semibold"
-          data-testid="tile-counter"
-        >
-          Tiles left: {gameStateQuery.data?.deckSize ?? 0}
-        </div>
-        {gameStateQuery.data?.currentTile && (
-          <div
-            data-testid="current-tile"
-            data-tile-id={gameStateQuery.data.currentTile.id}
-            className="w-20 h-20 border-2 flex items-center justify-center relative cursor-pointer hover:bg-gray-50 border-green-500 bg-green-200"
-            onClick={handleRotateTile}
-          >
-            <Tile
-              tile={gameStateQuery.data.currentTile}
-              pos={{ x: 0, y: 0 }}
-              showLabels={showLabels}
-              data-testid="deck-tile"
-            />
-            <button
-              data-testid="rotate-button"
-              className="absolute top-0 right-0 bg-blue-500 text-white p-1 rounded-bl text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRotateTile();
-              }}
-            >
-              ⟳
-            </button>
-          </div>
-        )}
-        <button
-          data-testid="toggle-labels-button"
-          className="mt-2 bg-blue-500 text-white p-2 rounded text-sm hover:bg-blue-600"
-          onClick={() => setShowLabels(!showLabels)}
-        >
-          {showLabels ? 'Hide' : 'Show'} Labels
-        </button>
-        <button
-          data-testid="restart-button"
-          className="mt-2 bg-red-500 text-white p-2 rounded text-sm hover:bg-red-600"
-          onClick={handleRestart}
-        >
-          Restart Game
-        </button>
-      </div>
-      <Toaster />
+      <Deck
+        gameId={gameId}
+        showLabels={showLabels}
+        setShowLabels={setShowLabels}
+        handleRotateTile={handleRotateTile}
+        handleRestart={handleRestart}
+      />
     </>
   );
 };
