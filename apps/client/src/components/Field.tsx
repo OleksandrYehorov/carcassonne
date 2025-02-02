@@ -16,11 +16,11 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   ZOOM_SPEED,
-} from './constants';
-import { getEdgesFromEntities } from './helpers';
-import { trpc } from './utils/trpc';
+} from '../utils/constants';
+import { getEdgesFromEntities } from '../utils/helpers';
+import { trpc } from '../utils/trpc';
 import { toast } from 'sonner';
-import { Deck } from './components/Deck';
+import { Deck } from './Deck';
 
 export const Field: FC = () => {
   const utils = trpc.useUtils();
@@ -70,35 +70,6 @@ export const Field: FC = () => {
       },
     });
   }, [gameId, rotateTile, utils.game.getGameState]);
-
-  useEffect(() => {
-    setTimeout(() => {
-      toast.success('Test title 1', {
-        description: 'Test description 1',
-        duration: 5000,
-        className: 'bg-green-500 text-white',
-        position: 'top-center',
-      });
-    }, 500);
-
-    setTimeout(() => {
-      toast.success('Test title 2', {
-        description: 'Test description 2',
-        duration: 5000,
-        className: 'bg-green-500 text-white',
-        position: 'top-center',
-      });
-    }, 1000);
-
-    setTimeout(() => {
-      toast.success('Test title 3', {
-        description: 'Test description 3',
-        duration: 5000,
-        className: 'bg-green-500 text-white',
-        position: 'top-center',
-      });
-    }, 2000);
-  }, []);
 
   // Handle tile placement
   const handlePlaceTile = useCallback(

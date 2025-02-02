@@ -1,6 +1,6 @@
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button/button';
 import { trpc } from '../utils/trpc';
-import { Tile } from '@/Tile';
+import { Tile } from '@/components/Tile';
 import { skipToken } from '@tanstack/react-query';
 
 interface DeckProps {

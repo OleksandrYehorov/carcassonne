@@ -1,8 +1,8 @@
 import { FC } from 'react';
 import { Pos, TileEntity } from '@carcassonne/shared';
-import { getEdgesFromEntities } from './helpers';
-import { TILE_IMAGES } from './tileImagesConfig';
-import { CELL_SIZE } from './constants';
+import { getEdgesFromEntities } from '../utils/helpers';
+import { TILE_IMAGES } from '../utils/tileImagesConfig';
+import { CELL_SIZE } from '../utils/constants';
 
 interface TileProps {
   tile: TileEntity;

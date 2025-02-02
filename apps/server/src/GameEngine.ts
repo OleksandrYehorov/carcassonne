@@ -191,16 +191,26 @@ export class GameEngine {
     if (!placedTile) return [];
 
     const roadEntities = placedTile.entities.filter((e) => e.type === 'road');
-    const completedRoads: CompletedRoad[] = [];
+    // Use a Map to deduplicate completed roads by their unique set of visited tiles
+    const uniqueRoads: Map<string, CompletedRoad> = new Map();
 
     for (const road of roadEntities) {
       const completedRoad = this.isRoadComplete(placedTile, road);
       if (completedRoad) {
-        this.score += completedRoad.length;
-        completedRoads.push(completedRoad);
+        // Create an id based on sorted tile keys, which uniquely identifies a road
+        const roadId = Array.from(completedRoad.tiles).sort().join(',');
+        if (!uniqueRoads.has(roadId)) {
+          uniqueRoads.set(roadId, completedRoad);
+        }
       }
     }
-    return completedRoads;
+
+    const dedupedCompletedRoads = Array.from(uniqueRoads.values());
+    // Increase the score only once per unique completed road
+    for (const road of dedupedCompletedRoads) {
+      this.score += road.length;
+    }
+    return dedupedCompletedRoads;
   }
 
   private isRoadComplete(

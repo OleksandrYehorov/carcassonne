@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Field } from './Field';
+import { Field } from './components/Field';
 import { Toaster } from '@/components/ui/sonner';
 
 export const App: FC = () => {

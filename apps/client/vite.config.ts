@@ -15,6 +15,7 @@ export default defineConfig({
             lintCommand: 'eslint "./src/**/*.{ts,tsx}"',
             useFlatConfig: true,
           },
+          overlay: { initialIsOpen: false },
         })
       : undefined,
   ],
