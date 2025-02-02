@@ -1,3 +1,5 @@
+import { Toaster } from '@/components/ui/toaster';
+import { useToast } from '@/hooks/use-toast';
 import {
   Edge,
   Orientation,
@@ -9,8 +11,6 @@ import { skipToken } from '@tanstack/react-query';
 import { produce } from 'immer';
 import { FC, useCallback, useEffect, useRef, useState } from 'react';
 import { Tile } from './Tile';
-import { getEdgesFromEntities } from './helpers';
-import { trpc } from './utils/trpc';
 import {
   CELL_SIZE,
   GRID_CELLS,
@@ -19,25 +19,28 @@ import {
   MIN_ZOOM,
   ZOOM_SPEED,
 } from './constants';
-import { useToast } from '@/hooks/use-toast';
+import { getEdgesFromEntities } from './helpers';
+import { trpc } from './utils/trpc';
 
 export const Field: FC = () => {
   const utils = trpc.useUtils();
-  const createGameMutation = trpc.game.createGame.useMutation();
-  const gameId = createGameMutation.data?.gameId;
+  const { mutateAsync: createGame, data: createGameData } =
+    trpc.game.createGame.useMutation();
+  const gameId = createGameData?.gameId;
 
   // Get game state query
   const gameStateQuery = trpc.game.getGameState.useQuery(gameId ?? skipToken);
 
   // Mutations for game actions
-  const rotateTileMutation = trpc.game.rotateTile.useMutation();
-  const placeTileMutation = trpc.game.placeTile.useMutation();
-  const shuffleTileMutation = trpc.game.shuffleCurrentTile.useMutation();
+  const { mutateAsync: rotateTile } = trpc.game.rotateTile.useMutation();
+  const { mutateAsync: placeTile } = trpc.game.placeTile.useMutation();
+  const { mutateAsync: shuffleTile } =
+    trpc.game.shuffleCurrentTile.useMutation();
 
   // Create game on component mount
   useEffect(() => {
-    createGameMutation.mutate();
-  }, []);
+    createGame();
+  }, [createGame]);
 
   const [offset, setOffset] = useState<Pos>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -62,18 +65,44 @@ export const Field: FC = () => {
   // Handle tile rotation
   const handleRotateTile = useCallback(() => {
     if (!gameId) return;
-    rotateTileMutation.mutate(gameId, {
+    rotateTile(gameId, {
       onSuccess: () => {
         utils.game.getGameState.invalidate();
       },
     });
-  }, [gameId]);
+  }, [gameId, rotateTile, utils.game.getGameState]);
+
+  useEffect(() => {
+    toast({
+      title: 'Test title 1',
+      description: `Test description 1`,
+      duration: 5000,
+      className: 'bg-green-500 text-white',
+    });
+    setTimeout(() => {
+      toast({
+        title: 'Test title 2',
+        description: `Test description 2`,
+        duration: 5000,
+        className: 'bg-green-500 text-white',
+      });
+    }, 1000);
+
+    setTimeout(() => {
+      toast({
+        title: 'Test title 3',
+        description: `Test description 3`,
+        duration: 5000,
+        className: 'bg-green-500 text-white',
+      });
+    }, 2000);
+  }, [toast]);
 
   // Handle tile placement
   const handlePlaceTile = useCallback(
-    (position: Pos) => {
+    async (position: Pos) => {
       if (!gameId) return;
-      placeTileMutation.mutate(
+      const { completedRoads } = await placeTile(
         { gameId, position },
         {
           onSuccess: () => {
@@ -81,19 +110,29 @@ export const Field: FC = () => {
           },
         }
       );
+
+      for (const road of completedRoads) {
+        toast({
+          title: 'Road Completed!',
+          description: `Length: ${road.length} tiles`,
+          duration: 5000,
+          // className:
+          //   'top-0 left-1/2 -translate-x-1/2 bg-green-500 text-white flex fixed max-w-[420px] top-4 right-4',
+        });
+      }
     },
-    [gameId]
+    [gameId, placeTile, toast, utils.game.getGameState]
   );
 
   // Handle shuffling current tile
   const handleShuffleTile = useCallback(() => {
     if (!gameId) return;
-    shuffleTileMutation.mutate(gameId, {
+    shuffleTile(gameId, {
       onSuccess: () => {
         utils.game.getGameState.invalidate();
       },
     });
-  }, [gameId]);
+  }, [gameId, shuffleTile, utils.game.getGameState]);
 
   const getRotatedEdges = useCallback(
     (tile: TileEntity, orientation: Orientation): [Edge, Edge, Edge, Edge] => {
@@ -228,7 +267,8 @@ export const Field: FC = () => {
       }
     }
   }, [
-    gameStateQuery.data,
+    gameStateQuery.data?.currentRotations,
+    gameStateQuery.data?.currentTile,
     getValidPositions,
     handleRotateTile,
     handleShuffleTile,
@@ -399,13 +439,21 @@ export const Field: FC = () => {
 
       handlePlaceTile({ x: gridX, y: gridY });
     },
-    [gameStateQuery.data, isDragging, offset.x, offset.y, zoom, handlePlaceTile]
+    [
+      gameStateQuery.data?.currentTile,
+      getValidPositions,
+      handlePlaceTile,
+      isDragging,
+      offset.x,
+      offset.y,
+      zoom,
+    ]
   );
 
   // Handle restart game
   const handleRestart = useCallback(() => {
-    createGameMutation.mutate();
-  }, []);
+    createGame();
+  }, [createGame]);
 
   const generateGridBackground = () => {
     const totalSize = CELL_SIZE * GRID_CELLS * 2;
@@ -439,27 +487,39 @@ export const Field: FC = () => {
   };
 
   // Modify the useEffect for road completion messages
-  useEffect(() => {
-    const completedRoads = gameStateQuery.data?.completedRoads;
-    if (completedRoads && completedRoads.length > 0) {
-      if (completedRoads.length === 1) {
-        toast({
-          title: 'Road Completed!',
-          description: `Length: ${completedRoads[0].length} tiles`,
-          duration: 5000,
-        });
-      } else {
-        const messages = completedRoads.map(
-          (road, index) => `Road ${index + 1}: ${road.length} tiles`
-        );
-        toast({
-          title: 'Multiple Roads Completed!',
-          description: messages.join('\n'),
-          duration: 5000,
-        });
-      }
-    }
-  }, [gameStateQuery.data?.completedRoads]);
+  // useEffect(() => {
+  //   const completedRoads = gameStateQuery.data?.completedRoads;
+  //   if (completedRoads && completedRoads.length > 0) {
+  //     if (completedRoads.length === 1) {
+  //       toast({
+  //         title: 'Road Completed!',
+  //         description: `Length: ${completedRoads[0].length} tiles`,
+  //         duration: 5000,
+  //         className:
+  //           'top-0 left-1/2 -translate-x-1/2 flex fixed md:max-w-[420px] md:top-4 md:right-4',
+  //         style: {
+  //           backgroundColor: '#4ade80',
+  //           color: '#ffffff',
+  //         },
+  //       });
+  //     } else {
+  //       const messages = completedRoads.map(
+  //         (road, index) => `Road ${index + 1}: ${road.length} tiles`
+  //       );
+  //       toast({
+  //         title: 'Multiple Roads Completed!',
+  //         description: messages.join('\n'),
+  //         duration: 5000,
+  //         className:
+  //           'top-0 left-1/2 -translate-x-1/2 flex fixed md:max-w-[420px] md:top-4 md:right-4',
+  //         style: {
+  //           backgroundColor: '#4ade80',
+  //           color: '#ffffff',
+  //         },
+  //       });
+  //     }
+  //   }
+  // }, [gameStateQuery.data?.completedRoads]);
 
   return (
     <>
@@ -583,7 +643,7 @@ export const Field: FC = () => {
           Restart Game
         </button>
       </div>
-      {/* <Toaster /> */}
+      <Toaster />
     </>
   );
 };

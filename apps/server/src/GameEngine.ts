@@ -342,15 +342,17 @@ export class GameEngine {
     return oppositeEdges[edge];
   }
 
-  public placeTile(position: Pos): boolean {
-    if (this.deck.length === 0) return false;
+  public placeTile(
+    position: Pos
+  ): { success: true; completedRoads: CompletedRoad[] } | { success: false } {
+    if (this.deck.length === 0) return { success: false };
 
     const validPositions = this.getValidPositions();
     const isValidPosition = validPositions.some(
       (pos) => pos.x === position.x && pos.y === position.y
     );
 
-    if (!isValidPosition) return false;
+    if (!isValidPosition) return { success: false };
 
     const [currentTile, ...remainingDeck] = this.deck;
     this.placedTiles.push({
@@ -360,19 +362,12 @@ export class GameEngine {
     this.deck = remainingDeck;
     this.currentRotations = 0;
 
-    // Check for all completed roads after placing the tile
     const completedRoads = this.checkCompletedRoads(position);
     if (completedRoads.length > 0) {
       this.completedRoads.push(...completedRoads);
-      // Clear completed roads after 3 seconds
-      setTimeout(() => {
-        this.completedRoads = this.completedRoads.filter(
-          (road) => !completedRoads.includes(road)
-        );
-      }, 3000);
     }
 
-    return true;
+    return { success: true, completedRoads };
   }
 
   public getCurrentTile(): TileEntity | null {

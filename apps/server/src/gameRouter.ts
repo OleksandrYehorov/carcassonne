@@ -72,9 +72,9 @@ export const gameRouter = router({
     )
     .mutation(({ input }) => {
       const game = getGameInstance(input.gameId);
-      const success = game.placeTile(input.position);
+      const placeTileResult = game.placeTile(input.position);
 
-      if (!success) {
+      if (!placeTileResult.success) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message:
@@ -88,6 +88,7 @@ export const gameRouter = router({
         deckSize: game.getDeckSize(),
         validPositions: game.getValidPositions(),
         score: game.getScore(),
+        completedRoads: placeTileResult.completedRoads,
       };
     }),
 

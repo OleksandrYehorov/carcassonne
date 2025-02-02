@@ -23,7 +23,7 @@ import tile21Image from './assets/tiles/Base_Game_C3_Tile_U.png';
 import tile22Image from './assets/tiles/Base_Game_C3_Tile_V.png';
 import tile23Image from './assets/tiles/Base_Game_C3_Tile_W.png';
 import tile24Image from './assets/tiles/Base_Game_C3_Tile_X.png';
-import { TileType } from 'shared';
+import { TileType } from '@carcassonne/shared';
 
 export const TILE_IMAGES: Record<TileType, string> = {
   START: tile4Image,

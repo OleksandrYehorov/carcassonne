@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Pos, TileEntity } from 'shared';
+import { Pos, TileEntity } from '@carcassonne/shared';
 import { getEdgesFromEntities } from './helpers';
 import { TILE_IMAGES } from './tileImagesConfig';
 import { CELL_SIZE } from './constants';
@@ -41,7 +41,7 @@ export const Tile: FC<TileProps> = ({
         width: CELL_SIZE,
         height: CELL_SIZE,
         transform: `translate(
-          ${pos.x * CELL_SIZE}px, 
+          ${pos.x * CELL_SIZE}px,
           ${pos.y * CELL_SIZE}px
         ) rotate(${rotationDegrees}deg)`,
       }}
