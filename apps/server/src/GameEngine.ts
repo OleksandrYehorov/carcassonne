@@ -415,6 +415,24 @@ export class GameEngine {
       0
     );
 
+    // Check if next tile can be placed
+    while (this.deck.length > 0 && this.getValidPositions().length === 0) {
+      // Try rotating current tile up to 3 times
+      let rotationsAttempted = 0;
+      while (rotationsAttempted < 3) {
+        this.rotateTile();
+        rotationsAttempted++;
+        if (this.getValidPositions().length > 0) {
+          break;
+        }
+      }
+
+      // If no valid position found after rotations, shuffle current tile
+      if (this.getValidPositions().length === 0) {
+        this.shuffleCurrentTile();
+      }
+    }
+
     return {
       success: true,
       completedRoads,

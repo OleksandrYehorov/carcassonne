@@ -235,24 +235,6 @@ export const Field: FC = () => {
     return validPositions;
   }, [gameStateQuery.data, isValidPlacement]);
 
-  // Add a separate effect to handle auto-rotation/shuffle
-  useEffect(() => {
-    const currentTile = gameStateQuery.data?.currentTile;
-    if (!currentTile) return;
-
-    const validPositions = getValidPositions();
-    if (validPositions.length === 0) {
-      if ((gameStateQuery.data?.currentRotations ?? 0) < 3) {
-        handleRotateTile();
-      }
-    }
-  }, [
-    gameStateQuery.data?.currentRotations,
-    gameStateQuery.data?.currentTile,
-    getValidPositions,
-    handleRotateTile,
-  ]);
-
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return; // Only left click
