@@ -22,7 +22,7 @@ export const Tile: FC<TileProps> = ({
   const hasCenter = tile.entities.some(
     (entity) =>
       entity.type === 'road' &&
-      (entity.from === 'center' || entity.to === 'center')
+      (entity.from === 'deadEnd' || entity.to === 'deadEnd')
   );
 
   // Calculate rotation angle based on orientation

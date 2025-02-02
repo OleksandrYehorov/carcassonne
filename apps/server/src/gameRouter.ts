@@ -1,7 +1,8 @@
-import { CARCASSONNE_DECK, GameEngine } from '@carcassonne/shared';
 import { z } from 'zod';
 import { publicProcedure, router } from './trpc';
 import { TRPCError } from '@trpc/server';
+import { GameEngine } from './GameEngine';
+import { CARCASSONNE_DECK } from './deck';
 
 // In-memory storage for game instances
 const gameInstances = new Map<string, GameEngine>();
@@ -21,7 +22,10 @@ const getGameInstance = (gameId: string) => {
 export const gameRouter = router({
   // Create a new game
   createGame: publicProcedure.mutation(() => {
-    const [startTile, ...remainingDeck] = CARCASSONNE_DECK;
+    const [startTile, ...remainingDeck] = CARCASSONNE_DECK.filter(
+      // TODO: TEMPORARY!!!! remove tiles that dont have roads
+      (tile) => tile.entities.some((e) => e.type === 'road')
+    );
     const gameId = crypto.randomUUID();
     const game = new GameEngine(startTile, remainingDeck);
     gameInstances.set(gameId, game);
@@ -37,6 +41,7 @@ export const gameRouter = router({
       deckSize: game.getDeckSize(),
       currentRotations: game.getCurrentRotations(),
       validPositions: game.getValidPositions(),
+      score: game.getScore(),
     };
   }),
 
@@ -81,6 +86,7 @@ export const gameRouter = router({
         placedTiles: game.getPlacedTiles(),
         deckSize: game.getDeckSize(),
         validPositions: game.getValidPositions(),
+        score: game.getScore(),
       };
     }),
 

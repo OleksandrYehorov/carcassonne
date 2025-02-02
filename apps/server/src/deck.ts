@@ -1,10 +1,9 @@
+import { TileEntity } from '@carcassonne/shared';
 import { produce } from 'immer';
-import { TileType } from './types';
-import { TileEntity } from './types';
 
 export const startTile: TileEntity = {
   id: crypto.randomUUID(),
-  tileType: TileType.START,
+  tileType: 'START',
   entities: [
     { type: 'city', edges: ['top'], isFortified: false },
     { type: 'road', from: 'left', to: 'right' },
@@ -20,8 +19,8 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.MONASTERY_ROAD,
-      entities: [{ type: 'road', from: 'bottom', to: 'center' }],
+      tileType: 'MONASTERY_ROAD',
+      entities: [{ type: 'road', from: 'bottom', to: 'deadEnd' }],
       orientation: 'top',
     })),
 
@@ -30,7 +29,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.MONASTERY,
+      tileType: 'MONASTERY',
       entities: [],
       orientation: 'top',
     })),
@@ -40,7 +39,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_FULL,
+      tileType: 'CITY_FULL',
       entities: [
         {
           type: 'city',
@@ -56,7 +55,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_ONE_ROAD,
+      tileType: 'CITY_ONE_ROAD',
       entities: [
         { type: 'city', edges: ['top'], isFortified: false },
         { type: 'road', from: 'left', to: 'right' },
@@ -69,7 +68,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_ONE,
+      tileType: 'CITY_ONE',
       entities: [{ type: 'city', edges: ['top'], isFortified: false }],
       orientation: 'top',
     })),
@@ -79,7 +78,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_TWO_FORTIFIED,
+      tileType: 'CITY_TWO_FORTIFIED',
       entities: [{ type: 'city', edges: ['left', 'right'], isFortified: true }],
       orientation: 'top',
     })),
@@ -89,7 +88,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_TWO,
+      tileType: 'CITY_TWO',
       entities: [
         { type: 'city', edges: ['left', 'right'], isFortified: false },
       ],
@@ -101,7 +100,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_TWO_OPPOSITE,
+      tileType: 'CITY_TWO_OPPOSITE',
       entities: [
         { type: 'city', edges: ['top'], isFortified: false },
         { type: 'city', edges: ['bottom'], isFortified: false },
@@ -114,7 +113,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_TWO_ADJACENT,
+      tileType: 'CITY_TWO_ADJACENT',
       entities: [
         { type: 'city', edges: ['top'], isFortified: false },
         { type: 'city', edges: ['left'], isFortified: false },
@@ -127,7 +126,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_ONE_ROAD_BENT_RIGHT,
+      tileType: 'CITY_ONE_ROAD_BENT_RIGHT',
       entities: [
         { type: 'city', edges: ['top'], isFortified: false },
         { type: 'road', from: 'right', to: 'bottom' },
@@ -140,7 +139,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_ONE_ROAD_BENT_LEFT,
+      tileType: 'CITY_ONE_ROAD_BENT_LEFT',
       entities: [
         { type: 'city', edges: ['top'], isFortified: false },
         { type: 'road', from: 'left', to: 'bottom' },
@@ -153,12 +152,12 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_ONE_CROSSROAD,
+      tileType: 'CITY_ONE_CROSSROAD',
       entities: [
         { type: 'city', edges: ['top'], isFortified: false },
-        { type: 'road', from: 'left', to: 'center' },
-        { type: 'road', from: 'right', to: 'center' },
-        { type: 'road', from: 'bottom', to: 'center' },
+        { type: 'road', from: 'left', to: 'deadEnd' },
+        { type: 'road', from: 'right', to: 'deadEnd' },
+        { type: 'road', from: 'bottom', to: 'deadEnd' },
       ],
       orientation: 'top',
     })),
@@ -168,7 +167,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_CORNER_FORTIFIED,
+      tileType: 'CITY_CORNER_FORTIFIED',
       entities: [{ type: 'city', edges: ['top', 'right'], isFortified: true }],
       orientation: 'top',
     })),
@@ -178,7 +177,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_CORNER,
+      tileType: 'CITY_CORNER',
       entities: [{ type: 'city', edges: ['top', 'right'], isFortified: false }],
       orientation: 'top',
     })),
@@ -188,7 +187,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_CORNER_ROAD_FORTIFIED,
+      tileType: 'CITY_CORNER_ROAD_FORTIFIED',
       entities: [
         { type: 'city', edges: ['top', 'left'], isFortified: true },
         { type: 'road', from: 'right', to: 'bottom' },
@@ -201,7 +200,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_CORNER_ROAD,
+      tileType: 'CITY_CORNER_ROAD',
       entities: [
         { type: 'city', edges: ['top', 'left'], isFortified: false },
         { type: 'road', from: 'right', to: 'bottom' },
@@ -214,7 +213,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_THREE_FORTIFIED,
+      tileType: 'CITY_THREE_FORTIFIED',
       entities: [
         {
           type: 'city',
@@ -230,7 +229,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_THREE,
+      tileType: 'CITY_THREE',
       entities: [
         {
           type: 'city',
@@ -246,14 +245,14 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_THREE_ROAD_FORTIFIED,
+      tileType: 'CITY_THREE_ROAD_FORTIFIED',
       entities: [
         {
           type: 'city',
           edges: ['top', 'left', 'right'],
           isFortified: true,
         },
-        { type: 'road', from: 'bottom', to: 'center' },
+        { type: 'road', from: 'bottom', to: 'deadEnd' },
       ],
       orientation: 'top',
     })),
@@ -263,14 +262,14 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.CITY_THREE_ROAD,
+      tileType: 'CITY_THREE_ROAD',
       entities: [
         {
           type: 'city',
           edges: ['top', 'left', 'right'],
           isFortified: false,
         },
-        { type: 'road', from: 'bottom', to: 'center' },
+        { type: 'road', from: 'bottom', to: 'deadEnd' },
       ],
       orientation: 'top',
     })),
@@ -280,7 +279,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.ROAD_STRAIGHT,
+      tileType: 'ROAD_STRAIGHT',
       entities: [{ type: 'road', from: 'top', to: 'bottom' }],
       orientation: 'top',
     })),
@@ -290,7 +289,7 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.ROAD_CURVED,
+      tileType: 'ROAD_CURVED',
       entities: [{ type: 'road', from: 'left', to: 'bottom' }],
       orientation: 'top',
     })),
@@ -300,11 +299,11 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.ROAD_THREE_CROSSROAD,
+      tileType: 'ROAD_THREE_CROSSROAD',
       entities: [
-        { type: 'road', from: 'left', to: 'center' },
-        { type: 'road', from: 'right', to: 'center' },
-        { type: 'road', from: 'bottom', to: 'center' },
+        { type: 'road', from: 'left', to: 'deadEnd' },
+        { type: 'road', from: 'right', to: 'deadEnd' },
+        { type: 'road', from: 'bottom', to: 'deadEnd' },
       ],
       orientation: 'top',
     })),
@@ -314,12 +313,12 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     .fill(null)
     .map<TileEntity>(() => ({
       id: crypto.randomUUID(),
-      tileType: TileType.ROAD_FOUR_CROSSROAD,
+      tileType: 'ROAD_FOUR_CROSSROAD',
       entities: [
-        { type: 'road', from: 'top', to: 'center' },
-        { type: 'road', from: 'right', to: 'center' },
-        { type: 'road', from: 'bottom', to: 'center' },
-        { type: 'road', from: 'left', to: 'center' },
+        { type: 'road', from: 'top', to: 'deadEnd' },
+        { type: 'road', from: 'right', to: 'deadEnd' },
+        { type: 'road', from: 'bottom', to: 'deadEnd' },
+        { type: 'road', from: 'left', to: 'deadEnd' },
       ],
       orientation: 'top',
     })),

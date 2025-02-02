@@ -30,10 +30,10 @@ export const getEdgesFromEntities = (
       });
     } else if (entity.type === 'road') {
       // For roads, mark both the 'from' and 'to' edges if they're not center
-      if (entity.from !== 'center') {
+      if (entity.from !== 'deadEnd') {
         edges[edgeToIndex[entity.from]] = { type: 'road' };
       }
-      if (entity.to !== 'center') {
+      if (entity.to !== 'deadEnd') {
         edges[edgeToIndex[entity.to]] = { type: 'road' };
       }
     }

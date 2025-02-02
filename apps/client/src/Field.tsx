@@ -507,6 +507,9 @@ export const Field: FC = () => {
         className="w-24 bg-gray-100 flex flex-col gap-2 p-2"
         data-testid="deck"
       >
+        <div className="text-center font-bold text-lg" data-testid="score">
+          Score: {gameStateQuery.data?.score ?? 0}
+        </div>
         <div
           className="text-center mb-2 font-semibold"
           data-testid="tile-counter"

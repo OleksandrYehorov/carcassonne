@@ -1,5 +1,5 @@
 ---
-description: Please use only type-safe TS features. Avoid using unsafe types, "as" keyword, "any" type. When possible use readonly, non-mutable and constant types. Use "as const" and "satisfies" when neccessary.""
+description: Please use only type-safe TS features. Avoid using unsafe types, "as" keyword, "any" type. When possible use readonly, non-mutable and constant types. Use "as const" and "satisfies" when neccessary. Avoid using enums and prefer union types instead.
 globs: **/*.{ts,tsx}
 ---
 
