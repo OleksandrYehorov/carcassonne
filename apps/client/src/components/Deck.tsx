@@ -3,12 +3,16 @@ import { trpc } from '../utils/trpc';
 import { Tile } from '@/components/Tile';
 import { skipToken } from '@tanstack/react-query';
 import { useCallback } from 'react';
+import { Pos } from '@carcassonne/shared';
 
 interface DeckProps {
   gameId: string | undefined;
   showLabels: boolean;
   setShowLabels: (show: boolean) => void;
   handleRestart: () => void;
+  showMeeplePlacement: boolean;
+  setShowMeeplePlacement: (show: boolean) => void;
+  setLastPlacedTilePos: (pos: Pos | null) => void;
 }
 
 export const Deck: React.FC<DeckProps> = ({
@@ -16,12 +20,19 @@ export const Deck: React.FC<DeckProps> = ({
   setShowLabels,
   handleRestart,
   gameId,
+  showMeeplePlacement,
+  setShowMeeplePlacement,
+  setLastPlacedTilePos,
 }) => {
   const utils = trpc.useUtils();
 
   const { mutate: rotateTile } = trpc.game.rotateTile.useMutation();
 
   const gameStateQuery = trpc.game.getGameState.useQuery(gameId ?? skipToken);
+
+  // Add skipMeeplePlacement mutation
+  const { mutateAsync: skipMeeplePlacement } =
+    trpc.game.skipMeeplePlacement.useMutation();
 
   // Handle tile rotation
   const handleRotateTile = useCallback(() => {
@@ -32,6 +43,25 @@ export const Deck: React.FC<DeckProps> = ({
       },
     });
   }, [gameId, rotateTile, utils.game.getGameState]);
+
+  // Add end turn handler
+  const handleEndTurn = useCallback(async () => {
+    if (!gameId) return;
+
+    await skipMeeplePlacement(gameId, {
+      onSuccess: () => {
+        utils.game.getGameState.invalidate();
+        setShowMeeplePlacement(false);
+        setLastPlacedTilePos(null);
+      },
+    });
+  }, [
+    gameId,
+    skipMeeplePlacement,
+    setShowMeeplePlacement,
+    setLastPlacedTilePos,
+    utils.game.getGameState,
+  ]);
 
   return (
     <div
@@ -72,6 +102,16 @@ export const Deck: React.FC<DeckProps> = ({
             ⟳
           </Button>
         </div>
+      )}
+      {showMeeplePlacement && (
+        <Button
+          variant="secondary"
+          onClick={handleEndTurn}
+          data-testid="end-turn"
+          className="mt-2"
+        >
+          End Turn
+        </Button>
       )}
       <Button
         data-testid="toggle-labels-button"

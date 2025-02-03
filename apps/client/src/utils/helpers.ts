@@ -9,6 +9,7 @@ import {
   MeeplePosition,
   CityEdge,
 } from '@carcassonne/shared';
+import { produce } from 'immer';
 
 export const getEdgesFromEntities = (
   entities: (RoadEntity | CityEntity | MonasteryEntity)[]
@@ -69,14 +70,15 @@ export const getRotatedEdges = (
   };
 
   const rotationCount = rotations[orientation];
-  const rotatedEdges = [...baseEdges];
+  const rotatedEdges = produce(baseEdges, (draft) => {
+    for (let i = 0; i < rotationCount; i++) {
+      const last = draft[draft.length - 1];
+      draft.unshift(last);
+      draft.pop();
+    }
+  });
 
-  // Rotate the array by shifting elements
-  for (let i = 0; i < rotationCount; i++) {
-    rotatedEdges.unshift(rotatedEdges.pop()!);
-  }
-
-  return rotatedEdges as [Edge, Edge, Edge, Edge];
+  return rotatedEdges;
 };
 
 export const rotatePosition = (
@@ -114,16 +116,16 @@ export const calculateRoadPosition = (entity: RoadEntity): MeeplePosition => {
     const edge = from === 'deadEnd' ? to : from;
     switch (edge) {
       case 'top':
-        pos = { x: 50, y: 35 };
+        pos = { x: 50, y: 20 };
         break;
       case 'right':
-        pos = { x: 65, y: 50 };
+        pos = { x: 80, y: 50 };
         break;
       case 'bottom':
-        pos = { x: 50, y: 65 };
+        pos = { x: 50, y: 80 };
         break;
       case 'left':
-        pos = { x: 35, y: 50 };
+        pos = { x: 20, y: 50 };
         break;
       default:
         pos = { x: 50, y: 50 };
@@ -133,14 +135,14 @@ export const calculateRoadPosition = (entity: RoadEntity): MeeplePosition => {
   // For curved roads
   else {
     const positions: Record<string, { x: number; y: number }> = {
-      'left-bottom': { x: 35, y: 65 },
-      'bottom-left': { x: 35, y: 65 },
-      'left-top': { x: 35, y: 35 },
-      'top-left': { x: 35, y: 35 },
-      'right-bottom': { x: 65, y: 65 },
-      'bottom-right': { x: 65, y: 65 },
-      'right-top': { x: 65, y: 35 },
-      'top-right': { x: 65, y: 35 },
+      'left-bottom': { x: 40, y: 60 },
+      'bottom-left': { x: 40, y: 60 },
+      'left-top': { x: 40, y: 40 },
+      'top-left': { x: 40, y: 40 },
+      'right-bottom': { x: 60, y: 60 },
+      'bottom-right': { x: 60, y: 60 },
+      'right-top': { x: 60, y: 40 },
+      'top-right': { x: 60, y: 40 },
     };
 
     const key = `${from}-${to}`;
@@ -148,7 +150,6 @@ export const calculateRoadPosition = (entity: RoadEntity): MeeplePosition => {
   }
 
   return pos;
-  // return rotatePosition(pos, orientation);
 };
 
 export const calculateCityPosition = (entity: CityEntity): MeeplePosition => {
@@ -165,10 +166,29 @@ export const calculateCityPosition = (entity: CityEntity): MeeplePosition => {
   }
 
   if (edges.length === 2) {
-    // Corner or opposite cities - position in between the edges
-    const x = edges.includes('right') ? 65 : edges.includes('left') ? 35 : 50;
-    const y = edges.includes('bottom') ? 65 : edges.includes('top') ? 35 : 50;
-    return { x, y };
+    // Determine if it's a corner city (adjacent edges) or a long city (opposite edges)
+    const edgeSet = new Set(edges);
+    const isCornerCity =
+      (edgeSet.has('top') && edgeSet.has('right')) ||
+      (edgeSet.has('right') && edgeSet.has('bottom')) ||
+      (edgeSet.has('bottom') && edgeSet.has('left')) ||
+      (edgeSet.has('left') && edgeSet.has('top'));
+
+    const isLongCity =
+      (edgeSet.has('top') && edgeSet.has('bottom')) ||
+      (edgeSet.has('left') && edgeSet.has('right'));
+
+    if (isCornerCity) {
+      // For corner cities, position diagonally between the edges
+      const x = edgeSet.has('right') ? 65 : edgeSet.has('left') ? 35 : 50;
+      const y = edgeSet.has('bottom') ? 65 : edgeSet.has('top') ? 35 : 50;
+      return { x, y };
+    }
+
+    if (isLongCity) {
+      // For long cities spanning opposite sides, position in center
+      return { x: 50, y: 50 };
+    }
   }
 
   if (edges.length === 3) {

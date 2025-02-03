@@ -50,11 +50,6 @@ export const Tile: FC<TileProps> = memo(
       } as const;
     };
 
-    console.log(
-      'meeple',
-      tile.entities.filter((e) => e.meeple)
-    );
-
     return (
       <div
         {...rest}
@@ -62,10 +57,10 @@ export const Tile: FC<TileProps> = memo(
         style={{
           width: CELL_SIZE,
           height: CELL_SIZE,
-          transform: `translate(
-          ${pos.x * CELL_SIZE}px,
-          ${pos.y * CELL_SIZE}px
-        ) rotate(${getRotation(tile.orientation)}deg)`,
+          transform: `
+            translate(${pos.x * CELL_SIZE}px, ${pos.y * CELL_SIZE}px)
+            rotate(${getRotation(tile.orientation)}deg)
+          `,
         }}
       >
         {/* Tile content */}
@@ -150,18 +145,12 @@ export const Tile: FC<TileProps> = memo(
             <div
               key={`meeple-${index}`}
               style={{
-                position: 'absolute',
-                transform: 'translate(-50%, -50%)',
-                width: '20px', // Size for meeple
-                height: '20px',
-                borderRadius: '50%',
-                zIndex: 10,
                 backgroundColor: gameStateQuery.data?.players.find(
                   (p) => p.id === entity.meeple?.playerId
                 )?.color,
                 ...getMeepleStyles(entity.id),
               }}
-              className="shadow-md"
+              className="shadow-md w-5 h-5 absolute -translate-x-1/2 -translate-y-1/2 rounded-full z-10"
             />
           );
         })}

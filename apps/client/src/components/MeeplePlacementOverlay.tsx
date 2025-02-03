@@ -45,10 +45,6 @@ export const MeeplePlacementOverlay: FC<{
   // Mutations for game actions
   const { mutateAsync: placeMeeple } = trpc.game.placeMeeple.useMutation();
 
-  // Add skipMeeplePlacement mutation
-  const { mutateAsync: skipMeeplePlacement } =
-    trpc.game.skipMeeplePlacement.useMutation();
-
   // Add meeple placement handler
   const handleMeeplePlacement = useCallback(
     async (entityId: string) => {
@@ -78,32 +74,7 @@ export const MeeplePlacementOverlay: FC<{
     ]
   );
 
-  // Update skip meeple placement handler
-  const handleSkipMeeple = useCallback(async () => {
-    if (!gameId) return;
-
-    await skipMeeplePlacement(gameId, {
-      onSuccess: () => {
-        utils.game.getGameState.invalidate();
-        setShowMeeplePlacement(false);
-        setLastPlacedTilePos(null);
-      },
-    });
-  }, [
-    gameId,
-    skipMeeplePlacement,
-    setLastPlacedTilePos,
-    setShowMeeplePlacement,
-    utils.game.getGameState,
-  ]);
-
-  // const validPositions = gameStateQuery.data?.validMeeplePositions ?? [];
-  // const lastPlacedTile =
-  //   gameStateQuery.data?.placedTiles[
-  //     gameStateQuery.data.placedTiles.length - 1
-  //   ];
   const meeplePositions = getMeeplePositions(lastPlacedTile ?? null);
-  console.log('overlay', meeplePositions);
 
   return (
     <div
@@ -126,7 +97,7 @@ export const MeeplePlacementOverlay: FC<{
         {meeplePositions.map((meeplePos, index) => (
           <Button
             key={index}
-            className="absolute w-6 h-6"
+            className="absolute block w-6 h-6 rounded-full border-2 border-current bg-transparent hover:bg-white/20"
             style={{
               left: `${meeplePos.position.x}%`,
               top: `${meeplePos.position.y}%`,
@@ -136,21 +107,9 @@ export const MeeplePlacementOverlay: FC<{
               handleMeeplePlacement(meeplePos.entityId);
             }}
             data-testid={`meeple-${meeplePos.entityId}`}
-          >
-            ●
-          </Button>
+          />
         ))}
       </div>
-
-      {/* Skip button */}
-      <Button
-        className="absolute -bottom-8 left-1/2 -translate-x-1/2"
-        onClick={handleSkipMeeple}
-        variant="secondary"
-        data-testid="skip-meeple"
-      >
-        Skip
-      </Button>
     </div>
   );
 };

@@ -20,8 +20,10 @@ import { Tile } from './Tile';
 
 export const Field: FC = () => {
   const utils = trpc.useUtils();
+
   const { mutateAsync: createGame, data: createGameData } =
     trpc.game.createGame.useMutation();
+
   const gameId = createGameData?.gameId;
 
   // Get game state query
@@ -32,7 +34,7 @@ export const Field: FC = () => {
 
   // Create game on component mount
   useEffect(() => {
-    createGame(3);
+    createGame(5);
   }, [createGame]);
 
   const [offset, setOffset] = useState<Pos>({ x: 0, y: 0 });
@@ -54,11 +56,11 @@ export const Field: FC = () => {
         y: rect.height / 2,
       });
     }
-  }, []);
+  }, []); 
 
   // Handle restart game
   const handleRestart = useCallback(() => {
-    createGame(3);
+    createGame(5);
   }, [createGame]);
 
   // Handle tile placement
@@ -502,10 +504,13 @@ export const Field: FC = () => {
         </div>
       </div>
       <Deck
+        gameId={gameId}
         showLabels={showLabels}
         setShowLabels={setShowLabels}
         handleRestart={handleRestart}
-        gameId={gameId}
+        showMeeplePlacement={showMeeplePlacement}
+        setShowMeeplePlacement={setShowMeeplePlacement}
+        setLastPlacedTilePos={setLastPlacedTilePos}
       />
     </>
   );
