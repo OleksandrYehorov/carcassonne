@@ -55,6 +55,7 @@ export const Deck: React.FC<DeckProps> = ({
           onClick={handleRotateTile}
         >
           <Tile
+            gameId={gameId}
             tile={gameStateQuery.data.currentTile}
             pos={{ x: 0, y: 0 }}
             showLabels={showLabels}

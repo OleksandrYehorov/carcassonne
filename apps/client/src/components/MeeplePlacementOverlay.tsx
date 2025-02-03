@@ -1,9 +1,22 @@
-import { Dispatch, FC, SetStateAction, useCallback } from 'react';
 import { Button } from '@/components/ui/button/button';
 import { CELL_SIZE } from '@/utils/constants';
+import { calculateMeeplePosition, getRotation } from '@/utils/helpers';
 import { trpc } from '@/utils/trpc';
-import { Pos } from '@carcassonne/shared';
+import { MeeplePosition, Pos, TileEntity } from '@carcassonne/shared';
 import { skipToken } from '@tanstack/react-query';
+import { Dispatch, FC, SetStateAction, useCallback } from 'react';
+
+// Calculate meeple positions based on entity type and orientation
+const getMeeplePositions = (
+  currentTile: TileEntity | null
+): { entityId: string; position: MeeplePosition }[] => {
+  if (!currentTile) return [];
+
+  return currentTile.entities.map((entity) => ({
+    entityId: entity.id,
+    position: calculateMeeplePosition(entity),
+  }));
+};
 
 export const MeeplePlacementOverlay: FC<{
   gameId: string | undefined;
@@ -23,6 +36,12 @@ export const MeeplePlacementOverlay: FC<{
   // Get game state query
   const gameStateQuery = trpc.game.getGameState.useQuery(gameId ?? skipToken);
 
+  const lastPlacedTile = gameStateQuery.data?.placedTiles.find(
+    (tile) =>
+      tile.position.x === lastPlacedTilePos?.x &&
+      tile.position.y === lastPlacedTilePos?.y
+  );
+
   // Mutations for game actions
   const { mutateAsync: placeMeeple } = trpc.game.placeMeeple.useMutation();
 
@@ -32,15 +51,13 @@ export const MeeplePlacementOverlay: FC<{
 
   // Add meeple placement handler
   const handleMeeplePlacement = useCallback(
-    async (position: 'top' | 'right' | 'bottom' | 'left' | 'center') => {
-      console.log(1);
+    async (entityId: string) => {
       if (!gameId || !lastPlacedTilePos) return;
-      console.log(2);
 
       await placeMeeple(
         {
           gameId,
-          position,
+          entityId,
         },
         {
           onSuccess: () => {
@@ -80,7 +97,13 @@ export const MeeplePlacementOverlay: FC<{
     utils.game.getGameState,
   ]);
 
-  const validPositions = gameStateQuery.data?.validMeeplePositions ?? [];
+  // const validPositions = gameStateQuery.data?.validMeeplePositions ?? [];
+  // const lastPlacedTile =
+  //   gameStateQuery.data?.placedTiles[
+  //     gameStateQuery.data.placedTiles.length - 1
+  //   ];
+  const meeplePositions = getMeeplePositions(lastPlacedTile ?? null);
+  console.log('overlay', meeplePositions);
 
   return (
     <div
@@ -91,78 +114,38 @@ export const MeeplePlacementOverlay: FC<{
         height: CELL_SIZE,
       }}
     >
-      {/* Top */}
-      <Button
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6"
-        onClick={() => {
-          console.log('place top meeple');
-          handleMeeplePlacement('top');
+      {/* Meeple placement buttons */}
+      <div
+        className="absolute left-0 top-0 right-0 bottom-0"
+        style={{
+          transform: `rotate(${getRotation(
+            lastPlacedTile?.orientation ?? 'top'
+          )}deg)`,
         }}
-        disabled={!validPositions.includes('top')}
-        data-testid="meeple-top"
       >
-        ▲
-      </Button>
-
-      {/* Right */}
-      <Button
-        className="absolute top-1/2 right-0 -translate-y-1/2 w-6 h-6"
-        onClick={() => {
-          console.log('place right meeple');
-          handleMeeplePlacement('right');
-        }}
-        disabled={!validPositions.includes('right')}
-        data-testid="meeple-right"
-      >
-        ▶
-      </Button>
-
-      {/* Bottom */}
-      <Button
-        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6"
-        onClick={() => {
-          console.log('place bottom meeple');
-          handleMeeplePlacement('bottom');
-        }}
-        disabled={!validPositions.includes('bottom')}
-        data-testid="meeple-bottom"
-      >
-        ▼
-      </Button>
-
-      {/* Left */}
-      <Button
-        className="absolute top-1/2 left-0 -translate-y-1/2 w-6 h-6"
-        onClick={() => {
-          console.log('place left meeple');
-          handleMeeplePlacement('left');
-        }}
-        disabled={!validPositions.includes('left')}
-        data-testid="meeple-left"
-      >
-        ◀
-      </Button>
-
-      {/* Center */}
-      <Button
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6"
-        onClick={() => {
-          console.log('place center meeple');
-          handleMeeplePlacement('center');
-        }}
-        disabled={!validPositions.includes('center')}
-        data-testid="meeple-center"
-      >
-        ●
-      </Button>
+        {meeplePositions.map((meeplePos, index) => (
+          <Button
+            key={index}
+            className="absolute w-6 h-6"
+            style={{
+              left: `${meeplePos.position.x}%`,
+              top: `${meeplePos.position.y}%`,
+              transform: `translate(-50%, -50%)`,
+            }}
+            onClick={() => {
+              handleMeeplePlacement(meeplePos.entityId);
+            }}
+            data-testid={`meeple-${meeplePos.entityId}`}
+          >
+            ●
+          </Button>
+        ))}
+      </div>
 
       {/* Skip button */}
       <Button
         className="absolute -bottom-8 left-1/2 -translate-x-1/2"
-        onClick={() => {
-          console.log('skip meeple');
-          handleSkipMeeple();
-        }}
+        onClick={handleSkipMeeple}
         variant="secondary"
         data-testid="skip-meeple"
       >

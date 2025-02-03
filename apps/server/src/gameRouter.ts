@@ -40,7 +40,7 @@ export const gameRouter = router({
       deckSize: game.getDeckSize(),
       currentRotations: game.getCurrentRotations(),
       validPositions: game.getValidPositions(),
-      validMeeplePositions: game.getValidMeeplePositions(),
+      // validMeeplePositions: game.getValidMeeplePositions(),
       score: game.getScore(),
       completedRoads: game.getCompletedRoads(),
       completedCities: game.getCompletedCities(),
@@ -118,12 +118,13 @@ export const gameRouter = router({
     .input(
       z.object({
         gameId: z.string(),
-        position: z.enum(['top', 'right', 'bottom', 'left', 'center']),
+        entityId: z.string(),
       })
     )
-    .mutation(({ input }) => {
-      const game = getGameInstance(input.gameId);
-      const success = game.placeMeeple(input.position);
+    .mutation(({ input: { entityId, gameId } }) => {
+      const game = getGameInstance(gameId);
+
+      const success = game.placeMeeple(entityId);
 
       if (!success) {
         throw new TRPCError({

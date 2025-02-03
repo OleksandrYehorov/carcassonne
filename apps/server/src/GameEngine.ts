@@ -698,93 +698,45 @@ export class GameEngine {
   }
 
   public nextTurn(): void {
-    this.currentPlayerIndex =
-      (this.currentPlayerIndex + 1) % this.players.length;
+    this.players = produce(this.players, (draft) => {
+      // Update current player index
+      this.currentPlayerIndex = (this.currentPlayerIndex + 1) % draft.length;
+    });
   }
 
   public getPlayers(): Player[] {
     return [...this.players];
   }
 
-  // Add this helper method to check if a meeple can be placed on an entity
-  private canPlaceMeepleOnEntity(
-    entity: RoadEntity | CityEntity | MonasteryEntity,
-    position: 'top' | 'right' | 'bottom' | 'left' | 'center'
-  ): boolean {
-    switch (entity.type) {
-      case 'road':
-        // For roads, allow placement if the position matches the road's direction
-        const roadPositions = [entity.from, entity.to];
-        return position === 'center' || roadPositions.includes(position);
-
-      case 'city':
-        // For cities, allow placement if the position is one of the city's edges
-        return position === 'center' || entity.edges.includes(position);
-
-      case 'monastery':
-        // Monasteries only allow center placement
-        return position === 'center';
-
-      default:
-        return false;
-    }
-  }
-
-  // Add method to get valid meeple positions for the current tile
-  public getValidMeeplePositions(): (
-    | 'top'
-    | 'right'
-    | 'bottom'
-    | 'left'
-    | 'center'
-  )[] {
-    const currentTile = this.getCurrentTile();
-    if (!currentTile) return [];
-
-    const validPositions = new Set<
-      'top' | 'right' | 'bottom' | 'left' | 'center'
-    >();
-
-    currentTile.entities.forEach((entity) => {
-      (['top', 'right', 'bottom', 'left', 'center'] as const).forEach(
-        (position) => {
-          if (this.canPlaceMeepleOnEntity(entity, position)) {
-            validPositions.add(position);
-          }
-        }
-      );
-    });
-
-    return Array.from(validPositions);
-  }
-
   // Update the placeMeeple method
-  public placeMeeple(
-    position: 'top' | 'right' | 'bottom' | 'left' | 'center'
-  ): boolean {
-    if (!this.lastPlacedTilePos) return false;
-
+  public placeMeeple(entityId: string): boolean {
+    // const currentTile = this.getCurrentTile();
+    const lastPlacedTile = this.placedTiles.find(
+      (tile) =>
+        tile.position.x === this.lastPlacedTilePos?.x &&
+        tile.position.y === this.lastPlacedTilePos?.y
+    );
     const currentPlayer = this.getCurrentPlayer();
+
+    if (!lastPlacedTile) return false;
+
+    const entity = lastPlacedTile.entities.find((e) => e.id === entityId);
+    if (!entity) return false;
+
     if (currentPlayer.meeples <= 0) return false;
 
-    const tileIndex = this.placedTiles.findIndex(
-      (t) =>
-        t.position.x === this.lastPlacedTilePos?.x &&
-        t.position.y === this.lastPlacedTilePos?.y
-    );
-    if (tileIndex === -1) return false;
-
     this.placedTiles = produce(this.placedTiles, (draft) => {
-      const tile = draft[tileIndex];
-      const entity = tile.entities.find((e) =>
-        this.canPlaceMeepleOnEntity(e, position)
-      );
+      const entity = draft
+        .find(
+          (tile) =>
+            tile.position.x === this.lastPlacedTilePos?.x &&
+            tile.position.y === this.lastPlacedTilePos?.y
+        )
+        ?.entities.find((e) => e.id === entityId);
 
       if (entity) {
         entity.meeple = {
           playerId: currentPlayer.id,
-          position,
-          color: currentPlayer.color, // Add the player's color to the meeple
         };
       }
     });
@@ -796,6 +748,7 @@ export class GameEngine {
 
     this.lastPlacedTilePos = null;
     this.nextTurn();
+
     return true;
   }
 

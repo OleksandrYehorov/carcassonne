@@ -35,6 +35,11 @@ export type Pos = {
   y: number;
 };
 
+export interface MeeplePosition {
+  x: number; // percentage from left
+  y: number; // percentage from top
+}
+
 export type Edge = {
   type: EdgeType;
 };
@@ -50,28 +55,32 @@ export interface Player {
 
 export type MeepleInfo = {
   playerId: string;
-  position: 'top' | 'right' | 'bottom' | 'left' | 'center';
-  color: PlayerColor;
+  // position: MeeplePosition;
+  // color: PlayerColor;
 };
 
-export type RoadEntity = {
+export type BaseGameEntity = {
+  id: string;
+  meeple?: MeepleInfo;
+};
+
+export type RoadEntity = BaseGameEntity & {
   type: 'road';
   from: RoadEdge;
   to: RoadEdge;
-  meeple?: MeepleInfo;
 };
 
-export type CityEntity = {
+export type CityEntity = BaseGameEntity & {
   type: 'city';
   edges: CityEdge[];
   isFortified: boolean;
-  meeple?: MeepleInfo;
 };
 
-export type MonasteryEntity = {
+export type MonasteryEntity = BaseGameEntity & {
   type: 'monastery';
-  meeple?: MeepleInfo;
 };
+
+export type GameEntity = RoadEntity | CityEntity | MonasteryEntity;
 
 export type TileEntity = {
   id: string;

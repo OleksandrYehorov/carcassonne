@@ -1,11 +1,6 @@
+import { MeeplePlacementOverlay } from '@/components/MeeplePlacementOverlay';
 import { PlayerInfo } from '@/components/PlayerInfo';
-import {
-  Edge,
-  Orientation,
-  PlacedTileEntity,
-  Pos,
-  TileEntity,
-} from '@carcassonne/shared';
+import { PlacedTileEntity, Pos, TileEntity } from '@carcassonne/shared';
 import { skipToken } from '@tanstack/react-query';
 import { produce } from 'immer';
 import { FC, useCallback, useEffect, useRef, useState } from 'react';
@@ -18,11 +13,10 @@ import {
   MIN_ZOOM,
   ZOOM_SPEED,
 } from '../utils/constants';
-import { getEdgesFromEntities } from '../utils/helpers';
+import { getRotatedEdges } from '../utils/helpers';
 import { trpc } from '../utils/trpc';
 import { Deck } from './Deck';
 import { Tile } from './Tile';
-import { MeeplePlacementOverlay } from '@/components/MeeplePlacementOverlay';
 
 export const Field: FC = () => {
   const utils = trpc.useUtils();
@@ -115,34 +109,6 @@ export const Field: FC = () => {
     [gameId, placeTile, utils.game.getGameState]
   );
 
-  const getRotatedEdges = useCallback(
-    (tile: TileEntity, orientation: Orientation): [Edge, Edge, Edge, Edge] => {
-      // Get the base edges first
-      const baseEdges = getEdgesFromEntities(tile.entities);
-
-      // If orientation is top, return the base edges
-      if (orientation === 'top') return baseEdges;
-
-      // For other orientations, rotate the edges array
-      const rotations = {
-        right: 1,
-        bottom: 2,
-        left: 3,
-      };
-
-      const rotationCount = rotations[orientation];
-      const rotatedEdges = [...baseEdges];
-
-      // Rotate the array by shifting elements
-      for (let i = 0; i < rotationCount; i++) {
-        rotatedEdges.unshift(rotatedEdges.pop()!);
-      }
-
-      return rotatedEdges as [Edge, Edge, Edge, Edge];
-    },
-    []
-  );
-
   const isValidPlacement = useCallback(
     (tile1: PlacedTileEntity, pos: Pos, tile2: TileEntity): boolean => {
       const dx = pos.x - tile1.position.x;
@@ -177,7 +143,7 @@ export const Field: FC = () => {
 
       return tile1Edges[edge1Index].type === tile2Edges[edge2Index].type;
     },
-    [getRotatedEdges]
+    []
   );
 
   // Modify getValidPositions to use absolute coordinates for the first tile
@@ -514,6 +480,7 @@ export const Field: FC = () => {
             {gameStateQuery.data?.placedTiles.map((tile) => (
               <Tile
                 key={tile.id}
+                gameId={gameId}
                 tile={tile}
                 pos={tile.position}
                 showLabels={showLabels}
