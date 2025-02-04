@@ -4,7 +4,6 @@ import { PlacedTileEntity, Pos, TileEntity } from '@carcassonne/shared';
 import { skipToken } from '@tanstack/react-query';
 import { produce } from 'immer';
 import { FC, useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import {
   CELL_SIZE,
   GRID_CELLS,
@@ -29,12 +28,11 @@ export const Field: FC = () => {
   // Get game state query
   const gameStateQuery = trpc.game.getGameState.useQuery(gameId ?? skipToken);
 
-  // Mutations for game actions
   const { mutateAsync: placeTile } = trpc.game.placeTile.useMutation();
 
   // Create game on component mount
   useEffect(() => {
-    createGame(5);
+    createGame(3);
   }, [createGame]);
 
   const [offset, setOffset] = useState<Pos>({ x: 0, y: 0 });
@@ -56,18 +54,18 @@ export const Field: FC = () => {
         y: rect.height / 2,
       });
     }
-  }, []); 
+  }, []);
 
   // Handle restart game
   const handleRestart = useCallback(() => {
-    createGame(5);
+    createGame(3);
   }, [createGame]);
 
   // Handle tile placement
   const handlePlaceTile = useCallback(
     async (position: Pos) => {
       if (!gameId) return;
-      const result = await placeTile(
+      await placeTile(
         { gameId, position },
         {
           onSuccess: () => {
@@ -77,36 +75,6 @@ export const Field: FC = () => {
           },
         }
       );
-
-      // Show road completion messages
-      for (const road of result.completedRoads) {
-        toast.success('Road Completed!', {
-          description: `Length: ${road.length} tiles`,
-          duration: 5000,
-          className: 'bg-green-500 text-white',
-          position: 'top-center',
-        });
-      }
-
-      // Show city completion messages
-      for (const city of result.completedCities) {
-        toast.success('City Completed!', {
-          description: `Score: ${city.score}`,
-          duration: 5000,
-          className: 'bg-blue-500 text-white',
-          position: 'top-center',
-        });
-      }
-
-      // Show monastery completion messages
-      for (const monastery of result.completedMonasteries) {
-        toast.success('Monastery Completed!', {
-          description: `Score: ${monastery.score} points`,
-          duration: 5000,
-          className: 'bg-purple-500 text-white',
-          position: 'top-center',
-        });
-      }
     },
     [gameId, placeTile, utils.game.getGameState]
   );
@@ -345,9 +313,12 @@ export const Field: FC = () => {
     [zoom, offset.x, offset.y, clampOffset]
   );
 
+  const turnState = gameStateQuery.data?.turnState;
+
   const handleGridClick = useCallback(
     (e: React.MouseEvent) => {
       if (!gameStateQuery.data?.currentTile || isDragging) return;
+      if (turnState !== 'placeTile') return;
 
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -369,6 +340,7 @@ export const Field: FC = () => {
     },
     [
       gameStateQuery.data?.currentTile,
+      turnState,
       getValidPositions,
       handlePlaceTile,
       isDragging,
@@ -417,6 +389,12 @@ export const Field: FC = () => {
       <div className="flex h-screen w-screen">
         <div className="w-64 bg-gray-100 p-4 flex flex-col gap-2">
           <h2 className="text-xl font-bold mb-4">Players</h2>
+          <div className="mb-4 text-sm font-medium">
+            Turn:{' '}
+            {turnState === 'placeTile'
+              ? 'Place Tile'
+              : 'Place Meeple or End Turn'}
+          </div>
           {players.map((player) => (
             <PlayerInfo
               key={player.id}
@@ -450,8 +428,9 @@ export const Field: FC = () => {
                 />
               ))}
 
-              {/* Grid cells for valid positions */}
-              {gameStateQuery.data?.currentTile &&
+              {/* Grid cells for valid positions - only show during placeTile state */}
+              {turnState === 'placeTile' &&
+                gameStateQuery.data?.currentTile &&
                 getValidPositions().map((pos) => (
                   <div
                     key={`valid-${pos.x}-${pos.y}`}
@@ -460,8 +439,9 @@ export const Field: FC = () => {
                 ))}
             </div>
 
-            {/* Valid placement indicators */}
-            {gameStateQuery.data?.currentTile &&
+            {/* Valid placement indicators - only show during placeTile state */}
+            {turnState === 'placeTile' &&
+              gameStateQuery.data?.currentTile &&
               getValidPositions().map((pos) => (
                 <div
                   key={`${pos.x},${pos.y}`}

@@ -62,6 +62,7 @@ export type MeepleInfo = {
 export type BaseGameEntity = {
   id: string;
   meeple?: MeepleInfo;
+  type: 'city' | 'road' | 'monastery';
 };
 
 export type RoadEntity = BaseGameEntity & {
@@ -94,3 +95,9 @@ export type PlacedTileEntity = TileEntity & {
 };
 
 export type EdgeType = 'city' | 'road' | 'grass';
+
+export type WebSocketLogPayload = {
+  type: string;
+  timestamp: Date;
+  args: unknown[];
+};

@@ -45,7 +45,7 @@ export const Deck: React.FC<DeckProps> = ({
   }, [gameId, rotateTile, utils.game.getGameState]);
 
   // Add end turn handler
-  const handleEndTurn = useCallback(async () => {
+  const handleEndTurnHandler = useCallback(async () => {
     if (!gameId) return;
 
     await skipMeeplePlacement(gameId, {
@@ -68,45 +68,43 @@ export const Deck: React.FC<DeckProps> = ({
       className="w-24 bg-gray-100 flex flex-col gap-2 p-2"
       data-testid="deck"
     >
-      <div className="text-center font-bold text-lg" data-testid="score">
-        Score: {gameStateQuery.data?.score ?? 0}
-      </div>
       <div
         className="text-center mb-2 font-semibold"
         data-testid="tile-counter"
       >
         Tiles left: {gameStateQuery.data?.deckSize ?? 0}
       </div>
-      {gameStateQuery.data?.currentTile && (
-        <div
-          data-testid="current-tile"
-          data-tile-id={gameStateQuery.data.currentTile.id}
-          className="w-20 h-20 border-2 flex items-center justify-center relative cursor-pointer hover:bg-gray-50 border-green-500 bg-green-200"
-          onClick={handleRotateTile}
-        >
-          <Tile
-            gameId={gameId}
-            tile={gameStateQuery.data.currentTile}
-            pos={{ x: 0, y: 0 }}
-            showLabels={showLabels}
-            data-testid="deck-tile"
-          />
-          <Button
-            data-testid="rotate-button"
-            variant={'link'}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRotateTile();
-            }}
+      {gameStateQuery.data?.currentTile &&
+        gameStateQuery.data?.turnState === 'placeTile' && (
+          <div
+            data-testid="current-tile"
+            data-tile-id={gameStateQuery.data.currentTile.id}
+            className="w-20 h-20 border-2 flex items-center justify-center relative cursor-pointer hover:bg-gray-50 border-green-500 bg-green-200"
+            onClick={handleRotateTile}
           >
-            ⟳
-          </Button>
-        </div>
-      )}
+            <Tile
+              gameId={gameId}
+              tile={gameStateQuery.data.currentTile}
+              pos={{ x: 0, y: 0 }}
+              showLabels={showLabels}
+              data-testid="deck-tile"
+            />
+            <Button
+              data-testid="rotate-button"
+              variant={'link'}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRotateTile();
+              }}
+            >
+              ⟳
+            </Button>
+          </div>
+        )}
       {showMeeplePlacement && (
         <Button
           variant="secondary"
-          onClick={handleEndTurn}
+          onClick={handleEndTurnHandler}
           data-testid="end-turn"
           className="mt-2"
         >

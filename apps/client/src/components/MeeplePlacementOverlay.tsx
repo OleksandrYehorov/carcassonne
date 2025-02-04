@@ -4,18 +4,21 @@ import { calculateMeeplePosition, getRotation } from '@/utils/helpers';
 import { trpc } from '@/utils/trpc';
 import { MeeplePosition, Pos, TileEntity } from '@carcassonne/shared';
 import { skipToken } from '@tanstack/react-query';
-import { Dispatch, FC, SetStateAction, useCallback } from 'react';
+import { Dispatch, FC, SetStateAction, useCallback, useEffect } from 'react';
 
-// Calculate meeple positions based on entity type and orientation
+// Update getMeeplePositions to use the API response
 const getMeeplePositions = (
-  currentTile: TileEntity | null
+  currentTile: TileEntity | null,
+  validEntityIds: string[]
 ): { entityId: string; position: MeeplePosition }[] => {
   if (!currentTile) return [];
 
-  return currentTile.entities.map((entity) => ({
-    entityId: entity.id,
-    position: calculateMeeplePosition(entity),
-  }));
+  return currentTile.entities
+    .filter((entity) => validEntityIds.includes(entity.id))
+    .map((entity) => ({
+      entityId: entity.id,
+      position: calculateMeeplePosition(entity),
+    }));
 };
 
 export const MeeplePlacementOverlay: FC<{
@@ -44,13 +47,25 @@ export const MeeplePlacementOverlay: FC<{
 
   // Mutations for game actions
   const { mutateAsync: placeMeeple } = trpc.game.placeMeeple.useMutation();
+  const { mutateAsync: skipMeeplePlacement } =
+    trpc.game.skipMeeplePlacement.useMutation();
+
+  // Add query for valid meeple positions
+  const validMeeplePositionsQuery = trpc.game.getValidMeeplePositions.useQuery(
+    gameId && lastPlacedTilePos
+      ? {
+          gameId,
+          position: lastPlacedTilePos,
+        }
+      : skipToken
+  );
 
   // Add meeple placement handler
   const handleMeeplePlacement = useCallback(
     async (entityId: string) => {
       if (!gameId || !lastPlacedTilePos) return;
 
-      await placeMeeple(
+      const result = await placeMeeple(
         {
           gameId,
           entityId,
@@ -63,9 +78,70 @@ export const MeeplePlacementOverlay: FC<{
           },
         }
       );
+
+      const currentPlayerId = gameStateQuery.data?.currentPlayer?.id;
+      if (!currentPlayerId) return;
+
+      console.log('result.completedFeatures', result.completedFeatures);
+
+      // Show completion messages for all completed features
+      // result.completedFeatures?.completedRoads.forEach((road) => {
+      //   const playerNames = road.playerIds
+      //     .map(
+      //       (id) => gameStateQuery.data?.players.find((p) => p.id === id)?.color
+      //     )
+      //     .filter(Boolean)
+      //     .join(' and ');
+
+      //   if (road.playerIds.length > 0) {
+      //     toast.success('Road Completed!', {
+      //       description: `${playerNames} scored ${road.length} points!`,
+      //       duration: 5000,
+      //       className: 'bg-green-500 text-white',
+      //       position: 'top-center',
+      //     });
+      //   }
+      // });
+
+      // result.completedFeatures?.completedCities.forEach((city) => {
+      //   // const playerNames = city.playerIds
+      //   //   .map(
+      //   //     (id) => gameStateQuery.data?.players.find((p) => p.id === id)?.color
+      //   //   )
+      //   //   .filter(Boolean)
+      //   //   .join(' and ');
+
+      //   if (city.playerIds.length > 0) {
+      //     toast.success('City Completed!', {
+      //       description: `${playerNames} scored ${city.score} points!`,
+      //       duration: 5000,
+      //       className: 'bg-blue-500 text-white',
+      //       position: 'top-center',
+      //     });
+      //   }
+      // });
+
+      // result.completedFeatures?.completedMonasteries.forEach((monastery) => {
+      //   const playerNames = monastery.playerIds
+      //     .map(
+      //       (id) => gameStateQuery.data?.players.find((p) => p.id === id)?.color
+      //     )
+      //     .filter(Boolean)
+      //     .join(' and ');
+
+      //   if (monastery.playerIds.length > 0) {
+      //     toast.success('Monastery Completed!', {
+      //       description: `${playerNames} scored ${monastery.score} points!`,
+      //       duration: 5000,
+      //       className: 'bg-purple-500 text-white',
+      //       position: 'top-center',
+      //     });
+      //   }
+      // });
     },
     [
       gameId,
+      gameStateQuery.data?.currentPlayer?.id,
       lastPlacedTilePos,
       placeMeeple,
       setLastPlacedTilePos,
@@ -74,7 +150,36 @@ export const MeeplePlacementOverlay: FC<{
     ]
   );
 
-  const meeplePositions = getMeeplePositions(lastPlacedTile ?? null);
+  // Add useEffect to auto-end turn when no valid positions
+  useEffect(() => {
+    if (
+      validMeeplePositionsQuery.data &&
+      validMeeplePositionsQuery.data.length === 0 &&
+      gameId &&
+      lastPlacedTilePos
+    ) {
+      skipMeeplePlacement(gameId, {
+        onSuccess: () => {
+          utils.game.getGameState.invalidate();
+          setShowMeeplePlacement(false);
+          setLastPlacedTilePos(null);
+        },
+      });
+    }
+  }, [
+    validMeeplePositionsQuery.data,
+    gameId,
+    lastPlacedTilePos,
+    skipMeeplePlacement,
+    utils.game.getGameState,
+    setShowMeeplePlacement,
+    setLastPlacedTilePos,
+  ]);
+
+  const meeplePositions = getMeeplePositions(
+    lastPlacedTile ?? null,
+    validMeeplePositionsQuery.data ?? []
+  );
 
   return (
     <div

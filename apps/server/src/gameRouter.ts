@@ -26,7 +26,13 @@ export const gameRouter = router({
     .mutation(({ input: playerCount }) => {
       const [startTile, ...remainingDeck] = CARCASSONNE_DECK;
       const gameId = crypto.randomUUID();
-      const game = new GameEngine(startTile, remainingDeck, playerCount);
+      const game = new GameEngine(
+        startTile,
+        remainingDeck.filter(({ entities }) =>
+          entities.map(({ type }) => type).includes('road')
+        ),
+        playerCount
+      );
       gameInstances.set(gameId, game);
       return { gameId };
     }),
@@ -40,13 +46,12 @@ export const gameRouter = router({
       deckSize: game.getDeckSize(),
       currentRotations: game.getCurrentRotations(),
       validPositions: game.getValidPositions(),
-      // validMeeplePositions: game.getValidMeeplePositions(),
-      score: game.getScore(),
       completedRoads: game.getCompletedRoads(),
       completedCities: game.getCompletedCities(),
       completedMonasteries: game.getCompletedMonasteries(),
       currentPlayer: game.getCurrentPlayer(),
       players: game.getPlayers(),
+      turnState: game.getTurnState(),
     };
   }),
 
@@ -76,9 +81,11 @@ export const gameRouter = router({
     )
     .mutation(({ input }) => {
       const game = getGameInstance(input.gameId);
-      const placeTileResult = game.placeTile(input.position);
+      const result = game.placeTile(input.position);
 
-      if (!placeTileResult.success) {
+      console.log('placeTile');
+
+      if (!result.success) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message:
@@ -91,29 +98,32 @@ export const gameRouter = router({
         placedTiles: game.getPlacedTiles(),
         deckSize: game.getDeckSize(),
         validPositions: game.getValidPositions(),
-        score: game.getScore(),
-        completedRoads: placeTileResult.completedRoads,
-        completedCities: placeTileResult.completedCities,
-        completedMonasteries: placeTileResult.completedMonasteries,
       };
     }),
 
-  // Add skipMeeplePlacement endpoint
   skipMeeplePlacement: publicProcedure
     .input(z.string())
     .mutation(({ input: gameId }) => {
       const game = getGameInstance(gameId);
-      game.skipMeeplePlacement();
+      const result = game.skipMeeplePlacement();
+
+      if (!result.success) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Cannot skip meeple placement at this time',
+        });
+      }
 
       return {
         currentTile: game.getCurrentTile(),
         placedTiles: game.getPlacedTiles(),
         players: game.getPlayers(),
         currentPlayer: game.getCurrentPlayer(),
+        completedFeatures: result.completedFeatures,
       };
     }),
 
-  // Update placeMeeple endpoint to return currentPlayer
+  // Update placeMeeple endpoint
   placeMeeple: publicProcedure
     .input(
       z.object({
@@ -123,10 +133,9 @@ export const gameRouter = router({
     )
     .mutation(({ input: { entityId, gameId } }) => {
       const game = getGameInstance(gameId);
+      const result = game.placeMeeple(entityId);
 
-      const success = game.placeMeeple(entityId);
-
-      if (!success) {
+      if (!result.success) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message:
@@ -139,6 +148,7 @@ export const gameRouter = router({
         placedTiles: game.getPlacedTiles(),
         players: game.getPlayers(),
         currentPlayer: game.getCurrentPlayer(),
+        completedFeatures: result.completedFeatures,
       };
     }),
 
@@ -168,4 +178,20 @@ export const gameRouter = router({
     const game = getGameInstance(gameId);
     return game.getPlayers();
   }),
+
+  // Add endpoint to get valid meeple positions
+  getValidMeeplePositions: publicProcedure
+    .input(
+      z.object({
+        gameId: z.string(),
+        position: z.object({
+          x: z.number(),
+          y: z.number(),
+        }),
+      })
+    )
+    .query(({ input }) => {
+      const game = getGameInstance(input.gameId);
+      return game.getValidMeeplePositions(input.position);
+    }),
 });

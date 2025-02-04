@@ -1,5 +1,4 @@
 import { TileEntity } from '@carcassonne/shared';
-import { produce } from 'immer';
 
 export const startTile: TileEntity = {
   id: crypto.randomUUID(),
@@ -454,12 +453,16 @@ export const CARCASSONNE_DECK: TileEntity[] = [
     })),
 ];
 
-// Shuffle function using Fisher-Yates algorithm
+// Replace the immer-based shuffle with a pure function
 export const shuffleDeck = (deck: TileEntity[]): TileEntity[] => {
-  return produce(deck, (draft) => {
-    for (let i = draft.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [draft[i], draft[j]] = [draft[j], draft[i]];
-    }
-  });
+  // Create a copy of the deck to maintain immutability
+  const shuffled = [...deck];
+
+  // Fisher-Yates shuffle algorithm
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
 };
