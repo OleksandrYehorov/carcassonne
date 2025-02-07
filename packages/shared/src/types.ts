@@ -48,15 +48,15 @@ export type PlayerColor = 'yellow' | 'red' | 'green' | 'blue' | 'black';
 
 export interface Player {
   id: string;
+  name: string;
   color: PlayerColor;
-  meeples: number; // Number of available meeples (starts with 7)
+  remainingMeeples: number; // Number of available meeples (starts with 7)
   score: number;
+  isHost: boolean;
 }
 
 export type MeepleInfo = {
   playerId: string;
-  // position: MeeplePosition;
-  // color: PlayerColor;
 };
 
 export type BaseGameEntity = {
@@ -100,4 +100,9 @@ export type WebSocketLogPayload = {
   type: string;
   timestamp: Date;
   args: unknown[];
+};
+
+export type JoinGameResponse = {
+  playerId: string;
+  color: PlayerColor;
 };

@@ -12,35 +12,29 @@ import {
   RoadEntity,
   TileEntity,
 } from '@carcassonne/shared';
-import { shuffleDeck } from './deck';
+import { CARCASSONNE_DECK, shuffleDeck } from './deck';
 
 export type BaseCompletedFeature = {
-  // type: 'city' | 'road' | 'monastery';
+  id: string;
+  positions: Pos[];
+  score: number;
+  winners: string[] | undefined;
 };
 
 export type CompletedRoad = BaseCompletedFeature & {
   type: 'road';
-  length: number;
-  tiles: Set<string>;
-  positions: Pos[];
-  playerIds: Map<string, number>;
+  meeplesCount: Map<string, number>;
   entitiesIds: Set<string>;
 };
 
 export type CompletedCity = BaseCompletedFeature & {
   type: 'city';
-  tiles: Set<string>;
-  positions: Pos[];
-  score: number; // Cities score 2 points per tile
-  playerIds: Map<string, number>;
+  meeplesCount: Map<string, number>;
   entitiesIds: Set<string>;
 };
 
 export type CompletedMonastery = BaseCompletedFeature & {
   type: 'monastery';
-  tiles: Set<string>; // Set of tile IDs that complete the monastery
-  positions: Pos[]; // Positions of all tiles involved (monastery + surrounding)
-  score: number; // 1 point per tile (monastery + surrounding tiles)
   playerId: string | undefined;
 };
 
@@ -49,37 +43,68 @@ export type CompetedFeature = CompletedRoad &
   CompletedMonastery;
 
 export class GameEngine {
+  public readonly gameId = crypto.randomUUID();
   private placedTiles: PlacedTileEntity[];
   private deck: TileEntity[];
   private currentRotations = 0;
-  private completedRoads: CompletedRoad[] = [];
-  private completedCities: CompletedCity[] = [];
-  private completedMonasteries: CompletedMonastery[] = [];
-  private players: Player[];
-  private currentPlayerIndex: number;
-  private lastPlacedTilePos: Pos | null = null;
-  private turnState: 'placeTile' | 'placeMeepleOrEnd' = 'placeTile';
+  private players: Player[] = [];
+  public readonly playersCount: number;
+  private currentPlayerIndex = 0;
+  private lastPlacedTilePos: Pos | null = { x: 0, y: 0 };
+  private turnState: 'placeTile' | 'placeMeepleOrEnd' = 'placeMeepleOrEnd';
 
-  constructor(startTile: TileEntity, deck: TileEntity[], playerCount: number) {
-    // Initialize with start tile at center
+  constructor({ playersCount }: { playersCount: number }) {
+    const [startTile, ...remainingDeck] = CARCASSONNE_DECK;
+
+    if (!startTile) throw new Error('Deck is empty');
+
     this.placedTiles = [
       {
         ...startTile,
         position: { x: 0, y: 0 },
       },
     ];
-    this.deck = shuffleDeck(deck);
-    this.findValidTilePlacement();
+    this.deck = shuffleDeck(remainingDeck);
 
-    // Initialize players
+    this.playersCount = playersCount;
+
+    this.findValidTilePlacement();
+  }
+
+  public addPlayer(playerName: string):
+    | {
+        success: true;
+        player: Player;
+      }
+    | {
+        success: false;
+        message?: string;
+      } {
+    if (this.players.length >= this.playersCount) {
+      return { success: false, message: 'Game is already full.' };
+    }
+
     const colors: PlayerColor[] = ['yellow', 'red', 'green', 'blue', 'black'];
-    this.players = Array.from({ length: playerCount }).map((_, index) => ({
+    const color = colors.find(
+      (color) => !this.players.some((player) => player.color === color)
+    );
+
+    if (!color) {
+      return { success: false, message: 'No available colors left.' };
+    }
+
+    const player: Player = {
       id: crypto.randomUUID(),
-      color: colors[index],
-      meeples: 7,
+      name: playerName,
+      color,
+      remainingMeeples: 7,
       score: 0,
-    }));
-    this.currentPlayerIndex = 0;
+      isHost: this.players.length === 0,
+    };
+
+    this.players.push(player);
+
+    return { success: true, player };
   }
 
   private getEdgesFromEntities(
@@ -168,12 +193,14 @@ export class GameEngine {
       edge2Index = 2; // bottom edge of tile2
     }
 
-    return tile1Edges[edge1Index].type === tile2Edges[edge2Index].type;
+    return tile1Edges[edge1Index]?.type === tile2Edges[edge2Index]?.type;
   }
 
   public getValidPositions(): Pos[] {
     if (this.deck.length === 0) return [];
     const currentTile = this.deck[0];
+    if (!currentTile) throw new Error('No current tile available');
+
     const validPositions: Pos[] = [];
 
     this.placedTiles.forEach((tile) => {
@@ -214,7 +241,8 @@ export class GameEngine {
   }
 
   public rotateTile(): boolean {
-    if (this.deck.length === 0) return false;
+    const currentTile = this.deck[0];
+    if (!currentTile) return false;
 
     const nextOrientation: Record<Orientation, Orientation> = {
       top: 'right',
@@ -222,7 +250,7 @@ export class GameEngine {
       bottom: 'left',
       left: 'top',
     };
-    this.deck[0].orientation = nextOrientation[this.deck[0].orientation];
+    currentTile.orientation = nextOrientation[currentTile.orientation];
 
     this.currentRotations++;
     return true;
@@ -233,7 +261,6 @@ export class GameEngine {
       (t) => t.position.x === position.x && t.position.y === position.y
     );
     if (!placedTile) return [];
-    console.log('checkCompletedRoads');
 
     const roadEntities = placedTile.entities.filter((e) => e.type === 'road');
     // Use a Map to deduplicate completed roads by their unique set of visited tiles
@@ -241,16 +268,12 @@ export class GameEngine {
 
     for (const road of roadEntities) {
       const completedRoad = this.isRoadComplete(placedTile, road);
-      console.log('checkCompletedRoads', {
-        completedRoad,
-        roadEntity: road,
-        placedTile,
-      });
+
       if (completedRoad) {
         // Create an id based on sorted tile keys, which uniquely identifies a road
-        const roadId = Array.from(completedRoad.tiles).sort().join(',');
-        if (!uniqueRoads.has(roadId)) {
-          uniqueRoads.set(roadId, completedRoad);
+        // const roadId = Array.from(completedRoad.tiles).sort().join(',');
+        if (!uniqueRoads.has(completedRoad.id)) {
+          uniqueRoads.set(completedRoad.id, completedRoad);
         }
       }
     }
@@ -260,8 +283,6 @@ export class GameEngine {
     for (const road of dedupedCompletedRoads) {
       this.awardPointsForFeature(road);
     }
-    console.log({ dedupedCompletedRoads });
-
     return dedupedCompletedRoads;
   }
 
@@ -277,7 +298,7 @@ export class GameEngine {
       road: RoadEntity;
       edge: RoadEdge;
     }> = [];
-    const playerIds = new Map<string, number>();
+    const meeplesCount = new Map<string, number>();
     // const entitiesIds = new Set<string>();
 
     const rotatedFrom = this.rotateEdge(startRoad.from, startTile.orientation);
@@ -294,9 +315,9 @@ export class GameEngine {
 
       // Check if current road has a meeple
       if (current.road.meeple) {
-        playerIds.set(
+        meeplesCount.set(
           current.road.meeple.playerId,
-          (playerIds.get(current.road.meeple.playerId) ?? 0) + 1
+          (meeplesCount.get(current.road.meeple.playerId) ?? 0) + 1
         );
       }
 
@@ -365,15 +386,23 @@ export class GameEngine {
 
     return centerEndCount === 2 || isCircular
       ? {
+          id: crypto.randomUUID(),
           type: 'road',
-          length: visitedTiles.size,
-          tiles: visitedTiles,
+          // length: visitedTiles.size,
+          // tiles: visitedTiles,
           positions: Array.from(visitedTiles).map((tile) => {
             const [x, y] = tile.split(',').map(Number);
+
+            if (x === undefined || y === undefined) {
+              throw new Error('Invalid tile coordinates');
+            }
+
             return { x, y };
           }),
-          playerIds,
+          score: visitedTiles.size,
+          meeplesCount,
           entitiesIds,
+          winners: undefined,
         }
       : null;
   }
@@ -408,7 +437,8 @@ export class GameEngine {
     if (currentIndex === -1) return edge;
 
     const rotationCount = rotations[orientation];
-    const newIndex = (currentIndex + rotationCount) % 4;
+    const newIndex = ((currentIndex + rotationCount) % 4) as 0 | 1 | 2 | 3;
+
     return edges[newIndex];
   }
 
@@ -423,52 +453,20 @@ export class GameEngine {
     return oppositeEdges[edge];
   }
 
-  private checkAndAwardCompletedFeatures(position: Pos) {
-    const result = {
-      completedRoads: this.checkCompletedRoads(position),
-      completedCities: this.checkCompletedCities(position),
-      completedMonasteries: this.checkCompletedMonasteries(position),
-    };
-
-    // // Only award points for features with meeples
-    // result.completedRoads = result.completedRoads.filter((road) => {
-    //   const playerIds = this.awardPointsForFeature(road);
-    //   road.playerIds = playerIds;
-    //   return playerIds.length > 0;
-    // });
-
-    // result.completedCities = result.completedCities.filter((city) => {
-    //   const playerIds = this.awardPointsForFeature(city);
-    //   city.playerIds = playerIds;
-    //   return playerIds.length > 0;
-    // });
-
-    // result.completedMonasteries = result.completedMonasteries.filter(
-    //   (monastery) => {
-    //     const playerIds = this.awardPointsForFeature(monastery);
-    //     monastery.playerIds = playerIds;
-    //     return playerIds.length > 0;
-    //   }
-    // );
-
-    // Store completed features
-    if (result.completedRoads.length > 0) {
-      this.completedRoads.push(...result.completedRoads);
-    }
-    if (result.completedCities.length > 0) {
-      this.completedCities.push(...result.completedCities);
-    }
-    if (result.completedMonasteries.length > 0) {
-      this.completedMonasteries.push(...result.completedMonasteries);
-    }
-
-    return result;
+  private checkAndAwardCompletedFeatures(
+    position: Pos
+  ): (CompletedRoad | CompletedCity | CompletedMonastery)[] {
+    return [
+      ...this.checkCompletedRoads(position),
+      ...this.checkCompletedCities(position),
+      ...this.checkCompletedMonasteries(position),
+    ];
   }
 
   public placeTile(position: Pos): { success: true } | { success: false } {
     if (this.deck.length === 0) return { success: false };
 
-    const currentTile = this.deck[0];
+    const currentTile = this.deck[0] as TileEntity;
     const validPositions = this.getValidPositions();
 
     if (!validPositions.some((p) => p.x === position.x && p.y === position.y)) {
@@ -543,10 +541,6 @@ export class GameEngine {
     }
   }
 
-  public getCompletedRoads(): CompletedRoad[] {
-    return [...this.completedRoads];
-  }
-
   private checkCompletedCities(position: Pos): CompletedCity[] {
     const placedTile = this.placedTiles.find(
       (t) => t.position.x === position.x && t.position.y === position.y
@@ -559,15 +553,17 @@ export class GameEngine {
     for (const city of cityEntities) {
       const completedCity = this.isCityComplete(placedTile, city);
       if (completedCity) {
-        const cityId = Array.from(completedCity.tiles).sort().join(',');
-        if (!uniqueCities.has(cityId)) {
-          uniqueCities.set(cityId, completedCity);
+        if (!uniqueCities.has(completedCity.id)) {
+          uniqueCities.set(completedCity.id, completedCity);
         }
       }
     }
 
     const dedupedCompletedCities = Array.from(uniqueCities.values());
-
+    // Increase the score only once per unique completed road
+    for (const city of dedupedCompletedCities) {
+      this.awardPointsForFeature(city);
+    }
     return dedupedCompletedCities;
   }
 
@@ -583,7 +579,7 @@ export class GameEngine {
       city: CityEntity;
       edge: CityEdge;
     }> = [];
-    const playerIds = new Map<string, number>();
+    const meeplesCount = new Map<string, number>();
 
     // Add initial city's edges to visit
     startCity.edges.forEach((edge) => {
@@ -604,9 +600,9 @@ export class GameEngine {
 
       // Check if current road has a meeple
       if (current.city.meeple) {
-        playerIds.set(
+        meeplesCount.set(
           current.city.meeple.playerId,
-          (playerIds.get(current.city.meeple.playerId) ?? 0) + 1
+          (meeplesCount.get(current.city.meeple.playerId) ?? 0) + 1
         );
       }
 
@@ -667,15 +663,21 @@ export class GameEngine {
     }, 0);
 
     return {
+      id: crypto.randomUUID(),
       type: 'city',
-      tiles: visitedTiles,
       positions: Array.from(visitedTiles).map((tile) => {
         const [x, y] = tile.split(',').map(Number);
+
+        if (x === undefined || y === undefined) {
+          throw new Error('Invalid tile coordinates');
+        }
+
         return { x, y };
       }),
       score,
-      playerIds,
+      meeplesCount,
       entitiesIds,
+      winners: undefined,
     };
   }
 
@@ -693,14 +695,6 @@ export class GameEngine {
           (edge) => this.rotateEdge(edge, tile.orientation) === oppositeEdge
         )
       );
-  }
-
-  public getCompletedCities(): CompletedCity[] {
-    return [...this.completedCities];
-  }
-
-  public getCompletedMonasteries(): CompletedMonastery[] {
-    return [...this.completedMonasteries];
   }
 
   private checkCompletedMonasteries(newTilePos: Pos): CompletedMonastery[] {
@@ -754,28 +748,28 @@ export class GameEngine {
       );
 
       if (surroundingTiles.every((t) => t !== undefined)) {
-        // Monastery is complete! Add it to the result
-        const allTiles = new Set([
-          `${pos.x},${pos.y}`, // Monastery tile
-          ...surroundingPositions.map((p) => `${p.x},${p.y}`), // Surrounding tiles
-        ]);
-
         completedMonasteries.push({
+          id: crypto.randomUUID(),
           type: 'monastery',
-          tiles: allTiles,
           positions: [pos, ...surroundingPositions],
           score: 9, // 1 point for monastery + 8 surrounding tiles
           playerId: tile.entities.find((e) => e.type === 'monastery')?.meeple
             ?.playerId,
+          winners: undefined,
         });
       }
     });
+
+    // Increase the score only once per unique completed road
+    for (const monastery of completedMonasteries) {
+      this.awardPointsForFeature(monastery);
+    }
 
     return completedMonasteries;
   }
 
   public getCurrentPlayer(): Player {
-    return this.players[this.currentPlayerIndex];
+    return this.players[this.currentPlayerIndex] as Player;
   }
 
   private nextTurn(): void {
@@ -892,12 +886,7 @@ export class GameEngine {
         continue;
       }
 
-      if (
-        current.tile.entities.find(
-          ({ meeple }) =>
-            meeple && meeple.playerId !== this.getCurrentPlayer().id
-        )
-      ) {
+      if (current.city.meeple) {
         return true;
       }
 
@@ -954,17 +943,11 @@ export class GameEngine {
   // Modify skipMeeplePlacement to check completions at end of turn
   public skipMeeplePlacement(): {
     success: boolean;
-    completedFeatures?: {
-      completedRoads: CompletedRoad[];
-      completedCities: CompletedCity[];
-      completedMonasteries: CompletedMonastery[];
-    };
+    completedFeatures?: (CompletedCity | CompletedMonastery | CompletedRoad)[];
   } {
     if (this.turnState !== 'placeMeepleOrEnd') {
       return { success: false };
     }
-
-    console.log('skipMeeplePlacement - checkAndAwardCompletedFeatures');
 
     const completedFeatures = this.lastPlacedTilePos
       ? this.checkAndAwardCompletedFeatures(this.lastPlacedTilePos)
@@ -983,11 +966,7 @@ export class GameEngine {
   // Modify placeMeeple to check completions at end of turn
   public placeMeeple(entityId: string): {
     success: boolean;
-    completedFeatures?: {
-      completedRoads: CompletedRoad[];
-      completedCities: CompletedCity[];
-      completedMonasteries: CompletedMonastery[];
-    };
+    completedFeatures?: (CompletedRoad | CompletedCity | CompletedMonastery)[];
   } {
     if (this.turnState !== 'placeMeepleOrEnd') {
       return { success: false };
@@ -1003,7 +982,7 @@ export class GameEngine {
     if (!lastPlacedTile) return { success: false };
     const entity = lastPlacedTile.entities.find((e) => e.id === entityId);
     if (!entity) return { success: false };
-    if (currentPlayer.meeples <= 0) return { success: false };
+    if (currentPlayer.remainingMeeples <= 0) return { success: false };
 
     // Check if the entity is already claimed
     if (entity.type === 'road' && this.isRoadClaimed(lastPlacedTile, entity)) {
@@ -1040,11 +1019,9 @@ export class GameEngine {
     // Update player meeples
     this.players = this.players.map((player, index) =>
       index === this.currentPlayerIndex
-        ? { ...player, meeples: player.meeples - 1 }
+        ? { ...player, remainingMeeples: player.remainingMeeples - 1 }
         : player
     );
-
-    console.log('placeMeeple - checkAndAwardCompletedFeatures');
 
     const completedFeatures = this.lastPlacedTilePos
       ? this.checkAndAwardCompletedFeatures(this.lastPlacedTilePos)
@@ -1095,13 +1072,15 @@ export class GameEngine {
     completedFeature: CompletedCity | CompletedRoad | CompletedMonastery
   ): void {
     if (completedFeature.type === 'city' || completedFeature.type === 'road') {
-      const meepleOwners = completedFeature.playerIds;
-      if (meepleOwners.size === 0) return undefined;
+      const meepleOwners = completedFeature.meeplesCount;
+      if (meepleOwners.size === 0) return;
 
       const maxMeeples = Math.max(...meepleOwners.values());
       const winners = Array.from(meepleOwners.entries())
         .filter(([_, count]) => count === maxMeeples)
         .map(([playerId]) => playerId);
+
+      completedFeature.winners = winners;
 
       // Update players scores and meeples
       this.players = this.players.map((player) => {
@@ -1109,11 +1088,11 @@ export class GameEngine {
           const points =
             completedFeature.type === 'city'
               ? completedFeature.score
-              : completedFeature.tiles.size;
+              : completedFeature.positions.length;
           return {
             ...player,
             score: player.score + points,
-            meeples: player.meeples + maxMeeples,
+            remainingMeeples: player.remainingMeeples + maxMeeples,
           };
         }
         return player;
@@ -1121,8 +1100,11 @@ export class GameEngine {
 
       // Remove meeples only from completed entities
       this.placedTiles = this.placedTiles.map((tile) => {
-        const tileKey = `${tile.position.x},${tile.position.y}`;
-        if (completedFeature.tiles.has(tileKey)) {
+        if (
+          completedFeature.positions.find(
+            ({ x, y }) => x === tile.position.x && y === tile.position.y
+          )
+        ) {
           return {
             ...tile,
             entities: tile.entities.map((entity) => {
@@ -1143,7 +1125,12 @@ export class GameEngine {
       });
     } else {
       // handle monasteries
-      if (!completedFeature.playerId) return undefined;
+      if (!completedFeature.playerId) return;
+
+      // Add winner for monastery
+      completedFeature.winners = completedFeature.playerId
+        ? [completedFeature.playerId]
+        : undefined;
 
       // Find the player who owns the monastery
       this.players = this.players.map((player) => {
@@ -1151,7 +1138,7 @@ export class GameEngine {
           return {
             ...player,
             score: player.score + completedFeature.score,
-            meeples: player.meeples + 1, // Return 1 meeple from monastery
+            remainingMeeples: player.remainingMeeples + 1, // Return 1 meeple from monastery
           };
         }
         return player;
@@ -1159,8 +1146,11 @@ export class GameEngine {
 
       // Remove meeple from the monastery tile
       this.placedTiles = this.placedTiles.map((tile) => {
-        const tileKey = `${tile.position.x},${tile.position.y}`;
-        if (completedFeature.tiles.has(tileKey)) {
+        if (
+          completedFeature.positions.find(
+            ({ x, y }) => x === tile.position.x && y === tile.position.y
+          )
+        ) {
           return {
             ...tile,
             entities: tile.entities.map((entity) => {
@@ -1184,7 +1174,8 @@ export class GameEngine {
     const tile = this.placedTiles.find(
       (t) => t.position.x === pos.x && t.position.y === pos.y
     );
-    if (!tile) return [];
+    const currentPlayer = this.getCurrentPlayer();
+    if (!tile || currentPlayer.remainingMeeples === 0) return [];
 
     return tile.entities
       .filter((entity) => {

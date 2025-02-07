@@ -1,10 +1,15 @@
 import { Button } from '@/components/ui/button/button';
 import { CELL_SIZE } from '@/utils/constants';
-import { calculateMeeplePosition, getRotation } from '@/utils/helpers';
+import {
+  calculateMeeplePosition,
+  capitalize,
+  getRotation,
+} from '@/utils/helpers';
 import { trpc } from '@/utils/trpc';
 import { MeeplePosition, Pos, TileEntity } from '@carcassonne/shared';
 import { skipToken } from '@tanstack/react-query';
 import { Dispatch, FC, SetStateAction, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
 
 // Update getMeeplePositions to use the API response
 const getMeeplePositions = (
@@ -82,66 +87,79 @@ export const MeeplePlacementOverlay: FC<{
       const currentPlayerId = gameStateQuery.data?.currentPlayer?.id;
       if (!currentPlayerId) return;
 
-      console.log('result.completedFeatures', result.completedFeatures);
+      result.completedFeatures?.forEach((feature) => {
+        if (!feature.winners) return;
 
-      // Show completion messages for all completed features
-      // result.completedFeatures?.completedRoads.forEach((road) => {
-      //   const playerNames = road.playerIds
-      //     .map(
-      //       (id) => gameStateQuery.data?.players.find((p) => p.id === id)?.color
-      //     )
-      //     .filter(Boolean)
-      //     .join(' and ');
+        if (feature.type === 'road') {
+          const playerColors = feature.winners
+            .map((id) => {
+              const color = gameStateQuery.data?.players.find(
+                (p) => p.id === id
+              )?.color;
+              return color ? capitalize(color) : null;
+            })
+            .filter((color) => typeof color === 'string');
 
-      //   if (road.playerIds.length > 0) {
-      //     toast.success('Road Completed!', {
-      //       description: `${playerNames} scored ${road.length} points!`,
-      //       duration: 5000,
-      //       className: 'bg-green-500 text-white',
-      //       position: 'top-center',
-      //     });
-      //   }
-      // });
+          if (playerColors.length === 1) {
+            toast.success('Road Completed!', {
+              description: `${playerColors[0]} scored ${feature.score} points!`,
+              position: 'top-center',
+            });
+          } else {
+            toast.success('Road Completed!', {
+              description: `${playerColors.join(' and ')} share ${
+                feature.score
+              } points!`,
+              position: 'top-center',
+            });
+          }
+        }
 
-      // result.completedFeatures?.completedCities.forEach((city) => {
-      //   // const playerNames = city.playerIds
-      //   //   .map(
-      //   //     (id) => gameStateQuery.data?.players.find((p) => p.id === id)?.color
-      //   //   )
-      //   //   .filter(Boolean)
-      //   //   .join(' and ');
+        if (feature.type === 'city') {
+          const playerColors = feature.winners
+            .map((id) => {
+              const color = gameStateQuery.data?.players.find(
+                (p) => p.id === id
+              )?.color;
+              return color ? capitalize(color) : null;
+            })
+            .filter((color) => typeof color === 'string');
 
-      //   if (city.playerIds.length > 0) {
-      //     toast.success('City Completed!', {
-      //       description: `${playerNames} scored ${city.score} points!`,
-      //       duration: 5000,
-      //       className: 'bg-blue-500 text-white',
-      //       position: 'top-center',
-      //     });
-      //   }
-      // });
+          if (playerColors.length === 1) {
+            toast.success('City Completed!', {
+              description: `${playerColors[0]} scored ${feature.score} points!`,
+              position: 'top-center',
+            });
+          } else {
+            toast.success('City Completed!', {
+              description: `${playerColors.join(' and ')} share ${
+                feature.score
+              } points!`,
+              position: 'top-center',
+            });
+          }
+        }
 
-      // result.completedFeatures?.completedMonasteries.forEach((monastery) => {
-      //   const playerNames = monastery.playerIds
-      //     .map(
-      //       (id) => gameStateQuery.data?.players.find((p) => p.id === id)?.color
-      //     )
-      //     .filter(Boolean)
-      //     .join(' and ');
+        if (feature.type === 'monastery') {
+          const playerColor = gameStateQuery.data?.players.find(
+            (p) => p.id === feature.winners?.[0]
+          )?.color;
 
-      //   if (monastery.playerIds.length > 0) {
-      //     toast.success('Monastery Completed!', {
-      //       description: `${playerNames} scored ${monastery.score} points!`,
-      //       duration: 5000,
-      //       className: 'bg-purple-500 text-white',
-      //       position: 'top-center',
-      //     });
-      //   }
-      // });
+          if (playerColor) {
+            toast.success('Monastery Completed!', {
+              description: `${capitalize(playerColor)} scored ${
+                feature.score
+              } points!`,
+              position: 'top-center',
+            });
+          }
+        }
+      });
     },
     [
       gameId,
       gameStateQuery.data?.currentPlayer?.id,
+      gameStateQuery.data?.players,
       lastPlacedTilePos,
       placeMeeple,
       setLastPlacedTilePos,
@@ -176,6 +194,25 @@ export const MeeplePlacementOverlay: FC<{
     setLastPlacedTilePos,
   ]);
 
+  // Add end turn handler
+  const handleEndTurnHandler = useCallback(async () => {
+    if (!gameId) return;
+
+    await skipMeeplePlacement(gameId, {
+      onSuccess: () => {
+        utils.game.getGameState.invalidate();
+        setShowMeeplePlacement(false);
+        setLastPlacedTilePos(null);
+      },
+    });
+  }, [
+    gameId,
+    skipMeeplePlacement,
+    setShowMeeplePlacement,
+    setLastPlacedTilePos,
+    utils.game.getGameState,
+  ]);
+
   const meeplePositions = getMeeplePositions(
     lastPlacedTile ?? null,
     validMeeplePositionsQuery.data ?? []
@@ -200,9 +237,9 @@ export const MeeplePlacementOverlay: FC<{
         }}
       >
         {meeplePositions.map((meeplePos, index) => (
-          <Button
+          <button
             key={index}
-            className="absolute block w-6 h-6 rounded-full border-2 border-current bg-transparent hover:bg-white/20"
+            className="absolute block w-6 h-6 text-[0px] rounded-full border-2 border-white bg-transparent hover:bg-white/20"
             style={{
               left: `${meeplePos.position.x}%`,
               top: `${meeplePos.position.y}%`,
@@ -215,6 +252,14 @@ export const MeeplePlacementOverlay: FC<{
           />
         ))}
       </div>
+      <Button
+        variant="default"
+        onClick={handleEndTurnHandler}
+        data-testid="end-turn"
+        className="absolute -bottom-9 left-1/2 -translate-x-1/2 p-2 h-[unset] text-xs"
+      >
+        End Turn
+      </Button>
     </div>
   );
 };

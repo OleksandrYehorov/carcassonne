@@ -1,9 +1,13 @@
+import { Deck } from '@/components/Deck';
 import { MeeplePlacementOverlay } from '@/components/MeeplePlacementOverlay';
 import { PlayerInfo } from '@/components/PlayerInfo';
+import { Tile } from '@/components/Tile';
+import { trpc } from '@/utils/trpc';
 import { PlacedTileEntity, Pos, TileEntity } from '@carcassonne/shared';
 import { skipToken } from '@tanstack/react-query';
+import { createFileRoute } from '@tanstack/react-router';
 import { produce } from 'immer';
-import { FC, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CELL_SIZE,
   GRID_CELLS,
@@ -13,35 +17,29 @@ import {
   ZOOM_SPEED,
 } from '../utils/constants';
 import { getRotatedEdges } from '../utils/helpers';
-import { trpc } from '../utils/trpc';
-import { Deck } from './Deck';
-import { Tile } from './Tile';
 
-export const Field: FC = () => {
+export const Route = createFileRoute('/game/$gameId')({
+  component: Game,
+});
+
+function Game() {
+  const { gameId } = Route.useParams();
   const utils = trpc.useUtils();
-
-  const { mutateAsync: createGame, data: createGameData } =
-    trpc.game.createGame.useMutation();
-
-  const gameId = createGameData?.gameId;
 
   // Get game state query
   const gameStateQuery = trpc.game.getGameState.useQuery(gameId ?? skipToken);
 
   const { mutateAsync: placeTile } = trpc.game.placeTile.useMutation();
 
-  // Create game on component mount
-  useEffect(() => {
-    createGame(3);
-  }, [createGame]);
-
   const [offset, setOffset] = useState<Pos>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<Pos>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [showLabels, setShowLabels] = useState(false);
-  const [showMeeplePlacement, setShowMeeplePlacement] = useState(false);
-  const [lastPlacedTilePos, setLastPlacedTilePos] = useState<Pos | null>(null);
+  const [showMeeplePlacement, setShowMeeplePlacement] = useState(true);
+  const [lastPlacedTilePos, setLastPlacedTilePos] = useState<Pos | null>({
+    x: 0,
+    y: 0,
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -55,11 +53,6 @@ export const Field: FC = () => {
       });
     }
   }, []);
-
-  // Handle restart game
-  const handleRestart = useCallback(() => {
-    createGame(3);
-  }, [createGame]);
 
   // Handle tile placement
   const handlePlaceTile = useCallback(
@@ -111,7 +104,7 @@ export const Field: FC = () => {
         edge2Index = 2; // bottom edge of tile2
       }
 
-      return tile1Edges[edge1Index].type === tile2Edges[edge2Index].type;
+      return tile1Edges[edge1Index]?.type === tile2Edges[edge2Index]?.type;
     },
     []
   );
@@ -465,7 +458,6 @@ export const Field: FC = () => {
                 gameId={gameId}
                 tile={tile}
                 pos={tile.position}
-                showLabels={showLabels}
                 data-testid="tile"
               />
             ))}
@@ -483,15 +475,7 @@ export const Field: FC = () => {
           </div>
         </div>
       </div>
-      <Deck
-        gameId={gameId}
-        showLabels={showLabels}
-        setShowLabels={setShowLabels}
-        handleRestart={handleRestart}
-        showMeeplePlacement={showMeeplePlacement}
-        setShowMeeplePlacement={setShowMeeplePlacement}
-        setLastPlacedTilePos={setLastPlacedTilePos}
-      />
+      <Deck gameId={gameId} />
     </>
   );
-};
+}

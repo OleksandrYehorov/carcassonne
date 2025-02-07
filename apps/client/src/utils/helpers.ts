@@ -72,7 +72,7 @@ export const getRotatedEdges = (
   const rotationCount = rotations[orientation];
   const rotatedEdges = produce(baseEdges, (draft) => {
     for (let i = 0; i < rotationCount; i++) {
-      const last = draft[draft.length - 1];
+      const last = draft[draft.length - 1]!;
       draft.unshift(last);
       draft.pop();
     }
@@ -162,7 +162,7 @@ export const calculateCityPosition = (entity: CityEntity): MeeplePosition => {
       bottom: { x: 50, y: 75 },
       left: { x: 25, y: 50 },
     };
-    return positions[edges[0]];
+    return positions[edges[0]!];
   }
 
   if (edges.length === 2) {
@@ -202,7 +202,7 @@ export const calculateCityPosition = (entity: CityEntity): MeeplePosition => {
       bottom: { x: 50, y: 35 }, // Missing bottom, position higher
       left: { x: 65, y: 50 }, // Missing left, position right
     };
-    return positions[missingEdge!];
+    return positions[missingEdge!]!;
   }
 
   // For 4 edges, place in center
@@ -235,3 +235,5 @@ export const getRotation = (orientation: Orientation) => {
       return 0;
   }
 };
+
+export const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

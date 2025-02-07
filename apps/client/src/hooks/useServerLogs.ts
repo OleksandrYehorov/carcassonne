@@ -7,7 +7,7 @@ export const useServerLogs = () => {
     // Only connect to WebSocket in development mode
     if (import.meta.env.MODE !== 'development') return;
 
-    const ws = new WebSocket(import.meta.env.VITE_WS_URL);
+    const ws = new WebSocket('/api/ws');
 
     ws.addEventListener('message', (event) => {
       try {
@@ -17,19 +17,10 @@ export const useServerLogs = () => {
 
         const time = new Date(timestamp).toLocaleTimeString();
 
-        switch (type) {
-          case 'log':
-            console.log(`[Server ${time}]`, ...args);
-            break;
-          case 'error':
-            console.error(`[Server ${time}]`, ...args);
-            break;
-          case 'warn':
-            console.warn(`[Server ${time}]`, ...args);
-            break;
-          case 'info':
-            console.info(`[Server ${time}]`, ...args);
-            break;
+        // @ts-expect-error: ignore TS error
+        if (typeof console[type] === 'function') {
+          // @ts-expect-error: ignore TS error
+          console[type]?.(`[Server ${time}]`, ...args);
         }
       } catch (error) {
         console.error('Failed to parse server log:', error);

@@ -19,12 +19,9 @@ export const PlayerInfo: FC<{ player: Player; isCurrentPlayer: boolean }> = ({
         style={{ backgroundColor: player.color }}
       />
       <div className="flex flex-col">
-        <span className="font-semibold">
-          Player {player.color}
-          {isCurrentPlayer && ' (Current)'}
-        </span>
+        <span className="font-semibold">Player {player.color}</span>
         <span className="text-sm">
-          Meeples: {player.meeples} | Score: {player.score}
+          Meeples: {player.remainingMeeples} | Score: {player.score}
         </span>
       </div>
     </div>
