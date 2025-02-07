@@ -2,12 +2,15 @@ import { Tile } from '@/components/Tile';
 import { skipToken } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { trpc } from '../utils/trpc';
+import { usePreloadTileImages } from '@/hooks/usePreloadTileImages';
 
 interface DeckProps {
   gameId: string | undefined;
 }
 
 export const Deck: React.FC<DeckProps> = ({ gameId }) => {
+  usePreloadTileImages();
+
   const utils = trpc.useUtils();
 
   const { mutate: rotateTile } = trpc.game.rotateTile.useMutation();
